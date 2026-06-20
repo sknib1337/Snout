@@ -90,6 +90,10 @@ docker compose up --build            # web on :8080, server on :8787
 | `GET`  | `/api/assessments/:id` | one assessment |
 | `POST` | `/api/assess` | `{ name, vendor?, url?, context? }` → runs agent, returns the record |
 | `DELETE` | `/api/assessments/:id` | remove |
+| `GET`  | `/api/catalog` | list discovered apps (enriched with any linked assessment) |
+| `POST` | `/api/catalog` | bulk-ingest discovered apps `{ apps: [...] }` (used by the extension's Sync) |
+| `POST` | `/api/catalog/:domain/assess` | assess a discovered app and link the result |
+| `DELETE` | `/api/catalog/:domain` | remove a discovered app |
 | `POST` | `/webhooks/catalog/:source` | `servicenow` \| `okta` \| `netsuite` — HMAC signed |
 | `POST` | `/slack/trust` | `/trust <app>` slash command |
 | `POST` | `/teams/trust` | Teams outgoing webhook / bot |

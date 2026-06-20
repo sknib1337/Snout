@@ -58,3 +58,21 @@ export function readiness(score: number): "Controls Ready" | "Partial" | "Not Re
   if (score >= 50) return "Partial";
   return "Not Ready";
 }
+
+// Apps discovered in the wild (e.g., by the browser extension) before assessment.
+export interface DiscoveredApp {
+  domain: string;
+  name: string;
+  methods: { sso: boolean; social: boolean; password: boolean; federated: boolean; oauthGrant: boolean };
+  idps: string[];
+  oauth: { idp: string; clientId: string; scopes: string[]; ts: number }[];
+  sources: string[];
+  firstSeen: number;
+  lastSeen: number;
+  assessmentId?: string;
+}
+
+/** A discovered app is "shadow" unless it authenticated via corporate SSO. */
+export function isShadow(app: DiscoveredApp): boolean {
+  return !app.methods.sso;
+}

@@ -44,14 +44,15 @@ The toolbar badge shows the current shadow-app count.
 ## Connect to Trust Agent
 
 In Options, set the **Trust Agent URL** (e.g. `https://trust-agent.yourco.com`) and,
-if the server has `API_TOKEN` set, the **API token**. Each discovered app then gets an
-**Assess in Trust Agent** button that POSTs to `/api/assess` and runs the full
-six-control assessment. (The extension has host permission for all sites, so this
-cross-origin call works without server CORS changes.)
+if the server has `API_TOKEN` set, the **API token**. Then:
 
-For bulk ingestion instead of one-click assessment, use **Export JSON** and feed the
-list into your own pipeline, or add a token-protected `/api/catalog` ingest route to
-the server.
+- **Sync** (popup footer) bulk-pushes every discovered app to `POST /api/catalog`. They
+  appear in the dashboard's **Discovered** view, where each can be assessed in place
+  (`POST /api/catalog/:domain/assess`, which links the result back to the discovered app).
+- **Assess in Trust Agent** (per app) runs a single assessment directly via `/api/assess`.
+
+The extension holds host permission for all sites, so these cross-origin calls work
+without server CORS changes.
 
 ## Permissions
 

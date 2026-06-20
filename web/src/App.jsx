@@ -7,9 +7,9 @@ import {
   AlertTriangle, X, HelpCircle, Webhook, Database, Users, LogOut, KeyRound,
   Radio, Fingerprint, Building2, Loader2, Copy, RefreshCw, Network, FileText,
   Layers, ScanSearch, ChevronRight, Sparkles, ListChecks, ShieldAlert,
-  LayoutDashboard, Boxes, Clock, TerminalSquare,
+  LayoutDashboard, Boxes, Clock, TerminalSquare, Radar as RadarIcon, Trash2,
 } from "lucide-react";
-import { assess as apiAssess, listAssessments } from "./api";
+import { assess as apiAssess, listAssessments, listDiscovered, assessDiscovered, deleteDiscovered } from "./api";
 
 /* ============================================================ *
  * Trust Agent — Critical Enterprise SaaS Controls console
@@ -738,6 +738,84 @@ function Integrations({ onAssessCatalog }) {
   );
 }
 
+/* --------------------------- Discovered apps --------------------------- */
+
+const METHOD_BADGES = [
+  { key: "sso",        label: "Corp SSO",       cls: "pill-green" },
+  { key: "social",     label: "Social IdP",     cls: "pill-amber" },
+  { key: "federated",  label: "Federated",      cls: "pill-amber" },
+  { key: "password",   label: "Local password", cls: "pill-red" },
+  { key: "oauthGrant", label: "OAuth grant",    cls: "pill-blue" },
+];
+function discoveredPosture(app) {
+  if (app.methods?.sso) return { label: "Sanctioned SSO", color: C.secondary };
+  if (app.methods?.password) return { label: "Shadow · password", color: C.error };
+  return { label: "Shadow", color: C.tertiary };
+}
+
+function Discovered({ apps, busyDomain, onAssess, onOpen, onDelete }) {
+  const shadow = apps.filter((a) => !a.methods?.sso);
+  const unassessed = apps.filter((a) => !a.assessment);
+
+  if (apps.length === 0) {
+    return (
+      <div className="panel p-12 text-center">
+        <div className="mx-auto grid place-items-center" style={{ width: 52, height: 52, borderRadius: 10, background: "rgba(173,198,255,0.08)" }}><RadarIcon className="w-6 h-6 txt-primary" /></div>
+        <div className="disp" style={{ fontSize: 18, fontWeight: 600, marginTop: 14, color: C.on }}>No discovered apps yet</div>
+        <p className="txt-var mx-auto" style={{ fontSize: 13, marginTop: 6, maxWidth: 460, lineHeight: 1.6 }}>
+          Install the Trust Agent browser extension, set your corporate IdP in its options, then click <b>Sync</b>.
+          Apps you authenticate to — and how (SSO, social, local password, OAuth grants) — show up here for triage and one-click assessment.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-3">
+        <KpiTile label="Discovered" value={apps.length} sub="from the field" Icon={RadarIcon} />
+        <KpiTile label="Shadow auth" value={shadow.length} sub="no corporate SSO" subColor={C.error} Icon={ShieldAlert} />
+        <KpiTile label="Unassessed" value={unassessed.length} sub="awaiting review" subColor={C.tertiary} Icon={AlertTriangle} />
+      </div>
+      <div className="panel">
+        <div className="px-4 py-3 border-b hair"><h3 className="caps txt-var">Discovered apps</h3></div>
+        <div>
+          {apps.map((a) => {
+            const p = discoveredPosture(a);
+            const grant = a.oauth?.[0];
+            const busy = busyDomain === a.domain;
+            return (
+              <div key={a.domain} className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+                {a.assessment
+                  ? <button onClick={() => onOpen(a.assessment.id)} style={{ background: "transparent", border: 0, cursor: "pointer" }}><ScoreDial score={a.assessment.score} size={44} /></button>
+                  : <div className="grid place-items-center shrink-0" style={{ width: 44, height: 44, borderRadius: 99, border: `1px dashed ${C.outlineVar}`, color: C.outline }}><RadarIcon className="w-4 h-4" /></div>}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="disp truncate" style={{ fontWeight: 600, fontSize: 15, color: C.on }}>{a.name}</span>
+                    <span className="mono txt-dim truncate" style={{ fontSize: 11 }}>{a.domain}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                    <span className="pill" style={{ background: "transparent", color: p.color, border: `1px solid ${p.color}66` }}>{p.label}</span>
+                    {METHOD_BADGES.filter((m) => a.methods?.[m.key]).map((m) => <span key={m.key} className={`pill ${m.cls}`}>{m.label}</span>)}
+                  </div>
+                  {grant?.scopes?.length > 0 && (
+                    <div className="mono txt-dim" style={{ fontSize: 10.5, marginTop: 5, lineHeight: 1.5, wordBreak: "break-word" }}>↳ {grant.idp} · scopes: {grant.scopes.join(" ")}</div>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {a.assessment
+                    ? <button onClick={() => onOpen(a.assessment.id)} className="btn-ghost" style={{ padding: "0.4rem 0.7rem", fontSize: 11 }}>View report</button>
+                    : <button onClick={() => onAssess(a.domain)} disabled={busy} className="btn-primary" style={{ padding: "0.45rem 0.7rem", fontSize: 10 }}>{busy ? <><Loader2 className="w-3.5 h-3.5 spin" /> Assessing…</> : <><Sparkles className="w-3.5 h-3.5" /> Assess</>}</button>}
+                  <button onClick={() => onDelete(a.domain)} title="Remove" className="btn-ghost" style={{ padding: "0.4rem", fontSize: 11 }}><Trash2 className="w-3.5 h-3.5" /></button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* --------------------------- Sidebar nav --------------------------- */
 
 function NavItem({ icon: Icon, label, active, onClick, indicator }) {
@@ -769,9 +847,10 @@ function Terminal({ busy, onRun }) {
 const NAV = [
   { key: "command", label: "Command Center", icon: LayoutDashboard },
   { key: "catalog", label: "Assessments", icon: Boxes },
+  { key: "discovered", label: "Discovered", icon: RadarIcon },
   { key: "integrations", label: "Integrations", icon: Network },
 ];
-const TITLES = { command: "Command Center", catalog: "Assessments", assess: "New Assessment", integrations: "Integrations" };
+const TITLES = { command: "Command Center", catalog: "Assessments", discovered: "Discovered Apps", assess: "New Assessment", integrations: "Integrations" };
 
 export default function App() {
   const [view, setView] = useState("command");
@@ -783,6 +862,12 @@ export default function App() {
   const [loaded, setLoaded] = useState(false);
   const [catalogQuery, setCatalogQuery] = useState("");
   const [topSearch, setTopSearch] = useState("");
+  const [discovered, setDiscovered] = useState([]);
+  const [busyDomain, setBusyDomain] = useState(null);
+
+  const refreshDiscovered = useCallback(async () => {
+    try { setDiscovered(await listDiscovered()); } catch { /* offline */ }
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -792,9 +877,10 @@ export default function App() {
         const id = new URLSearchParams(window.location.search).get("a");
         if (id && list.some((x) => x.id === id)) { setCurrentId(id); setView("detail"); }
       } catch { /* offline / empty */ }
+      refreshDiscovered();
       setLoaded(true);
     })();
-  }, []);
+  }, [refreshDiscovered]);
 
   const handleRun = useCallback(async (input) => {
     setBusy(true); setError(""); setView("assess");
@@ -805,6 +891,21 @@ export default function App() {
     } catch (e) { setError(e.message || "Something went wrong while assessing this app."); }
     finally { setBusy(false); }
   }, []);
+
+  const handleAssessDiscovered = useCallback(async (domain) => {
+    setBusyDomain(domain);
+    try {
+      const record = await assessDiscovered(domain);
+      setAssessments((prev) => [record, ...prev.filter((x) => x.app.toLowerCase() !== record.app.toLowerCase())]);
+      await refreshDiscovered();
+      setCurrentId(record.id); setView("detail");
+    } catch (e) { alert(e.message || "Assessment failed"); }
+    finally { setBusyDomain(null); }
+  }, [refreshDiscovered]);
+
+  const handleDeleteDiscovered = useCallback(async (domain) => {
+    try { await deleteDiscovered(domain); await refreshDiscovered(); } catch { /* ignore */ }
+  }, [refreshDiscovered]);
 
   const current = assessments.find((a) => a.id === currentId);
   const goNew = (pf = null) => { setPrefill(pf); setError(""); setView("assess"); };
@@ -842,6 +943,7 @@ export default function App() {
           <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
             <NavItem icon={LayoutDashboard} label="Command Center" active={navActive("command")} onClick={() => setView("command")} indicator={<span className="dot pulse-green" style={{ background: C.secondary }} />} />
             <NavItem icon={Boxes} label="Assessments" active={navActive("catalog")} onClick={() => setView("catalog")} indicator={assessments.length ? <span className="badge">{assessments.length}</span> : <span className="dot" style={{ background: C.outlineVar }} />} />
+            <NavItem icon={RadarIcon} label="Discovered" active={navActive("discovered")} onClick={() => setView("discovered")} indicator={(() => { const sh = discovered.filter((d) => !d.methods?.sso).length; return sh ? <span className="badge" style={{ background: "rgba(255,180,171,0.12)", color: C.error, borderColor: "rgba(255,180,171,0.25)" }}>{sh}</span> : (discovered.length ? <span className="badge">{discovered.length}</span> : <span className="dot" style={{ background: C.outlineVar }} />); })()} />
             <NavItem icon={Network} label="Integrations" active={navActive("integrations")} onClick={() => setView("integrations")} indicator={<span className="badge">5</span>} />
           </nav>
           <div className="px-4 mt-auto space-y-4">
@@ -873,6 +975,8 @@ export default function App() {
                 <CommandCenter assessments={assessments} onOpen={open} onNew={() => goNew()} goCatalog={() => { setCatalogQuery(""); setView("catalog"); }} />
               ) : view === "catalog" ? (
                 <Catalog assessments={assessments} onOpen={open} onNew={() => goNew()} initialQuery={catalogQuery} />
+              ) : view === "discovered" ? (
+                <Discovered apps={discovered} busyDomain={busyDomain} onAssess={handleAssessDiscovered} onOpen={open} onDelete={handleDeleteDiscovered} />
               ) : view === "assess" ? (
                 <AssessForm onRun={handleRun} busy={busy} error={error} prefill={prefill} />
               ) : view === "integrations" ? (

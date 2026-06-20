@@ -117,6 +117,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       catch (e) { sendResponse({ ok: false, error: e.message }); }
       return;
     }
+    if (msg.type === "syncCatalog") {
+      try { const r = await syncCatalog(db); sendResponse({ ok: true, accepted: r.accepted }); }
+      catch (e) { sendResponse({ ok: false, error: e.message }); }
+      return;
+    }
     sendResponse({ ok: false });
   })();
   return true; // async response
@@ -135,6 +140,23 @@ async function assessInTrustAgent(db, domain) {
       url: "https://" + app.domain,
       context: `Discovered via browser extension. Observed auth methods: ${methods}. IdPs: ${app.idps.join(", ") || "n/a"}.`,
     }),
+  });
+  if (!res.ok) throw new Error(`Trust Agent responded ${res.status}`);
+  return res.json();
+}
+
+async function syncCatalog(db) {
+  const s = db.settings;
+  if (!s.trustAgentUrl) throw new Error("Set the Trust Agent URL in Options first.");
+  const apps = Object.values(db.apps).map((a) => ({
+    domain: a.domain, name: a.name, methods: a.methods, idps: a.idps,
+    oauth: a.oauth, sources: ["extension"], firstSeen: a.firstSeen, lastSeen: a.lastSeen,
+  }));
+  if (!apps.length) return { accepted: 0 };
+  const res = await fetch(s.trustAgentUrl.replace(/\/$/, "") + "/api/catalog", {
+    method: "POST",
+    headers: { "content-type": "application/json", ...(s.trustAgentToken ? { authorization: "Bearer " + s.trustAgentToken } : {}) },
+    body: JSON.stringify({ apps }),
   });
   if (!res.ok) throw new Error(`Trust Agent responded ${res.status}`);
   return res.json();
