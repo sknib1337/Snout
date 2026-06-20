@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="stylesheet" href="popup.css" />
+  <style>
+    body{width:auto;max-width:680px;margin:0 auto;padding:24px;}
+    h1{font-size:18px;margin:0 0 4px;}
+    .note{color:var(--dim);font-size:12px;margin-bottom:20px;line-height:1.6;}
+    label{display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--var);
+      font-family:'JetBrains Mono',monospace;margin:16px 0 6px;}
+    .hint{font-size:11px;color:var(--dim);margin-top:4px;}
+    textarea,input{width:100%;background:rgba(2,6,17,.6);border:1px solid var(--line);border-radius:5px;
+      color:var(--on);padding:8px 10px;font-size:13px;font-family:'JetBrains Mono',monospace;}
+    textarea{min-height:72px;resize:vertical;}
+    .save{margin-top:22px;background:var(--pri);color:#002e6a;border:0;border-radius:5px;padding:10px 18px;
+      font-weight:700;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.08em;
+      text-transform:uppercase;cursor:pointer;}
+    .priv{margin-top:24px;padding:12px;border:1px solid var(--line);border-radius:7px;background:var(--sc);
+      font-size:11px;color:var(--var);line-height:1.6;}
+  </style>
+</head>
+<body>
+  <h1>Trust Agent — Shadow Capture</h1>
+  <p class="note">Tell the extension what your sanctioned identity provider and approved apps are, so it can tell sanctioned access apart from shadow auth. Optionally connect it to your Trust Agent server to assess discovered apps in one click.</p>
+
+  <label>Corporate IdP hosts (sanctioned SSO)</label>
+  <textarea id="corp" placeholder="yourco.okta.com&#10;login.microsoftonline.com&#10;accounts.google.com"></textarea>
+  <div class="hint">One host per line. Logins federated to these are treated as sanctioned SSO.</div>
+
+  <label>Sanctioned app domains</label>
+  <textarea id="sanctioned" placeholder="salesforce.com&#10;atlassian.net"></textarea>
+  <div class="hint">One registrable domain per line. These never count as shadow.</div>
+
+  <label>Ignore domains</label>
+  <textarea id="ignore" placeholder="internal.yourco.com"></textarea>
+  <div class="hint">Never recorded.</div>
+
+  <label>Trust Agent URL</label>
+  <input id="ta-url" placeholder="https://trust-agent.yourco.com" />
+  <label>Trust Agent API token</label>
+  <input id="ta-token" type="password" placeholder="bearer token (if API_TOKEN is set)" />
+  <div class="hint">Used by the “Assess in Trust Agent” button to POST to /api/assess.</div>
+
+  <button class="save" id="save">Save</button>
+  <span id="status" style="margin-left:12px;font-size:12px;color:var(--grn);"></span>
+
+  <div class="priv">
+    <strong>Privacy:</strong> capture is local to this browser. The extension records only domains and how you
+    authenticated (SSO / social / local password / OAuth scopes) — never passwords, page contents, or full URLs.
+    Data leaves your machine only when you click Export or Assess.
+  </div>
+  <script src="options.js"></script>
+</body>
+</html>
