@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify extension version matches tag
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          MAN="$(node -p "require('./extension/manifest.json').version")"
+          echo "tag=$TAG  manifest=$MAN"
+          if [ "$TAG" != "$MAN" ]; then
+            echo "::error::extension/manifest.json version ($MAN) does not match tag ($TAG). Bump the manifest before tagging."
+            exit 1
+          fi
+
+      - name: Build extension zip (Web Store ready — manifest at root)
+        run: |
+          cd extension
+          zip -r "../trust-agent-extension-${GITHUB_REF_NAME}.zip" . -x '*.DS_Store' '*/.*'
+
+      - name: Extract changelog section for this version
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          awk -v ver="$VER" '
+            $0 ~ "^## \\[" ver "\\]" { flag=1; next }
+            /^## \[/ { flag=0 }
+            flag { print }
+          ' CHANGELOG.md > RELEASE_NOTES.md
+          if [ ! -s RELEASE_NOTES.md ]; then echo "Release ${GITHUB_REF_NAME}" > RELEASE_NOTES.md; fi
+          echo "" >> RELEASE_NOTES.md
+          echo "**Install:** unzip and \`chrome://extensions → Load unpacked\`, or upload the zip to the Chrome Web Store (manifest is at the zip root)." >> RELEASE_NOTES.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Trust Agent ${{ github.ref_name }}
+          body_path: RELEASE_NOTES.md
+          files: trust-agent-extension-*.zip
+          fail_on_unmatched_files: true
