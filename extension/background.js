@@ -6,6 +6,7 @@ const DEFAULT_SETTINGS = {
   ignoreDomains: [],      // never record these
   trustAgentUrl: "",      // e.g. https://trust-agent.yourco.com
   trustAgentToken: "",
+  autoSyncMinutes: 0,     // 0 = manual sync only; otherwise periodic auto-sync
   paused: false,
 };
 
@@ -111,7 +112,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
     if (msg.type === "clearAll") { db.apps = {}; await save(db); return sendResponse({ ok: true }); }
     if (msg.type === "setPaused") { db.settings.paused = !!msg.paused; await save(db); return sendResponse({ ok: true }); }
-    if (msg.type === "saveSettings") { db.settings = { ...db.settings, ...msg.settings }; await save(db); return sendResponse({ ok: true }); }
+    if (msg.type === "saveSettings") { db.settings = { ...db.settings, ...msg.settings }; await save(db); scheduleSync(db.settings.autoSyncMinutes); return sendResponse({ ok: true }); }
     if (msg.type === "assess") {
       try { const r = await assessInTrustAgent(db, msg.domain); sendResponse({ ok: true, result: r }); }
       catch (e) { sendResponse({ ok: false, error: e.message }); }
@@ -162,5 +163,36 @@ async function syncCatalog(db) {
   return res.json();
 }
 
+// --- Enterprise managed config + auto-sync ---------------------------------
+
+async function scheduleSync(minutes) {
+  await chrome.alarms.clear("sync");
+  if (minutes && minutes > 0) chrome.alarms.create("sync", { periodInMinutes: Math.max(5, minutes) });
+}
+
+// Seed/override settings from Chrome Enterprise managed policy (force-installed
+// deployments). Managed values win; unmanaged installs keep their own settings.
+async function applyManaged() {
+  let managed = {};
+  try { managed = (await chrome.storage.managed.get(null)) || {}; } catch { managed = {}; }
+  const db = await load();
+  if (managed && Object.keys(managed).length) {
+    for (const k of ["corpIdpDomains", "sanctionedApps", "ignoreDomains", "trustAgentUrl", "trustAgentToken", "autoSyncMinutes", "paused"]) {
+      if (managed[k] !== undefined) db.settings[k] = managed[k];
+    }
+    await save(db);
+  }
+  await scheduleSync(db.settings.autoSyncMinutes);
+}
+
+chrome.alarms.onAlarm.addListener(async (a) => {
+  if (a.name !== "sync") return;
+  const db = await load();
+  try { await syncCatalog(db); } catch (e) { console.warn("[autosync]", e.message); }
+});
+
+chrome.storage.onChanged.addListener((_changes, area) => { if (area === "managed") applyManaged(); });
+chrome.runtime.onStartup?.addListener(() => applyManaged());
+
 chrome.tabs?.onRemoved.addListener((tabId) => { delete tabContext[tabId]; });
-chrome.runtime.onInstalled.addListener(async () => { const db = await load(); await save(db); });
+chrome.runtime.onInstalled.addListener(async () => { const db = await load(); await save(db); await applyManaged(); });

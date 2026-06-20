@@ -1,0 +1,36 @@
+{
+  "type": "object",
+  "properties": {
+    "corpIdpDomains": {
+      "title": "Corporate IdP hosts (sanctioned SSO)",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "sanctionedApps": {
+      "title": "Sanctioned app domains",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "ignoreDomains": {
+      "title": "Domains to never record",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "trustAgentUrl": {
+      "title": "Trust Agent server URL",
+      "type": "string"
+    },
+    "trustAgentToken": {
+      "title": "Trust Agent API token",
+      "type": "string"
+    },
+    "autoSyncMinutes": {
+      "title": "Auto-sync interval in minutes (0 = manual only)",
+      "type": "integer"
+    },
+    "paused": {
+      "title": "Pause capture",
+      "type": "boolean"
+    }
+  }
+}

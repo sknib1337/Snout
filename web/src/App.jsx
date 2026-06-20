@@ -9,7 +9,7 @@ import {
   Layers, ScanSearch, ChevronRight, Sparkles, ListChecks, ShieldAlert,
   LayoutDashboard, Boxes, Clock, TerminalSquare, Radar as RadarIcon, Trash2,
 } from "lucide-react";
-import { assess as apiAssess, listAssessments, listDiscovered, assessDiscovered, deleteDiscovered } from "./api";
+import { assess as apiAssess, listAssessments, listDiscovered, assessDiscovered, deleteDiscovered, getFeatures } from "./api";
 
 /* ============================================================ *
  * Trust Agent — Critical Enterprise SaaS Controls console
@@ -864,6 +864,7 @@ export default function App() {
   const [topSearch, setTopSearch] = useState("");
   const [discovered, setDiscovered] = useState([]);
   const [busyDomain, setBusyDomain] = useState(null);
+  const [features, setFeatures] = useState({ catalog: true });
 
   const refreshDiscovered = useCallback(async () => {
     try { setDiscovered(await listDiscovered()); } catch { /* offline */ }
@@ -871,13 +872,15 @@ export default function App() {
 
   useEffect(() => {
     (async () => {
+      const f = await getFeatures();
+      setFeatures(f);
       try {
         const list = await listAssessments();
         setAssessments(list);
         const id = new URLSearchParams(window.location.search).get("a");
         if (id && list.some((x) => x.id === id)) { setCurrentId(id); setView("detail"); }
       } catch { /* offline / empty */ }
-      refreshDiscovered();
+      if (f.catalog) refreshDiscovered();
       setLoaded(true);
     })();
   }, [refreshDiscovered]);
@@ -934,7 +937,7 @@ export default function App() {
         <button onClick={() => goNew()} className="btn-primary" style={{ padding: "0.4rem 0.7rem", fontSize: 10 }}><Plus className="w-3.5 h-3.5" /> New</button>
       </div>
       <div className="flex md:hidden gap-1.5 px-4 py-2 overflow-x-auto border-b hair" style={{ background: "rgba(6,14,32,0.7)" }}>
-        {NAV.map((n) => <button key={n.key} onClick={() => setView(n.key)} className="caps shrink-0" style={{ padding: "0.4rem 0.6rem", borderRadius: 4, border: `1px solid ${view === n.key ? C.primary : C.outlineVar}`, background: view === n.key ? "rgba(173,198,255,0.08)" : "transparent", color: view === n.key ? C.primary : C.onVar }}>{n.label}</button>)}
+        {NAV.filter((n) => features.catalog || n.key !== "discovered").map((n) => <button key={n.key} onClick={() => setView(n.key)} className="caps shrink-0" style={{ padding: "0.4rem 0.6rem", borderRadius: 4, border: `1px solid ${view === n.key ? C.primary : C.outlineVar}`, background: view === n.key ? "rgba(173,198,255,0.08)" : "transparent", color: view === n.key ? C.primary : C.onVar }}>{n.label}</button>)}
       </div>
 
       <div className="flex">
@@ -943,7 +946,9 @@ export default function App() {
           <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
             <NavItem icon={LayoutDashboard} label="Command Center" active={navActive("command")} onClick={() => setView("command")} indicator={<span className="dot pulse-green" style={{ background: C.secondary }} />} />
             <NavItem icon={Boxes} label="Assessments" active={navActive("catalog")} onClick={() => setView("catalog")} indicator={assessments.length ? <span className="badge">{assessments.length}</span> : <span className="dot" style={{ background: C.outlineVar }} />} />
-            <NavItem icon={RadarIcon} label="Discovered" active={navActive("discovered")} onClick={() => setView("discovered")} indicator={(() => { const sh = discovered.filter((d) => !d.methods?.sso).length; return sh ? <span className="badge" style={{ background: "rgba(255,180,171,0.12)", color: C.error, borderColor: "rgba(255,180,171,0.25)" }}>{sh}</span> : (discovered.length ? <span className="badge">{discovered.length}</span> : <span className="dot" style={{ background: C.outlineVar }} />); })()} />
+            {features.catalog && (
+              <NavItem icon={RadarIcon} label="Discovered" active={navActive("discovered")} onClick={() => setView("discovered")} indicator={(() => { const sh = discovered.filter((d) => !d.methods?.sso).length; return sh ? <span className="badge" style={{ background: "rgba(255,180,171,0.12)", color: C.error, borderColor: "rgba(255,180,171,0.25)" }}>{sh}</span> : (discovered.length ? <span className="badge">{discovered.length}</span> : <span className="dot" style={{ background: C.outlineVar }} />); })()} />
+            )}
             <NavItem icon={Network} label="Integrations" active={navActive("integrations")} onClick={() => setView("integrations")} indicator={<span className="badge">5</span>} />
           </nav>
           <div className="px-4 mt-auto space-y-4">

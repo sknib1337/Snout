@@ -30,6 +30,14 @@ export async function deleteAssessment(id) {
   if (!r.ok) throw new Error("Delete failed");
 }
 
+export async function getFeatures() {
+  try {
+    const r = await fetch(`${BASE}/config`, { headers: headers(false) });
+    if (!r.ok) return { catalog: true };
+    return (await r.json()).features || { catalog: true };
+  } catch { return { catalog: true }; }
+}
+
 // --- Discovered apps (from the browser extension / catalog pipeline) ---
 
 export async function listDiscovered() {

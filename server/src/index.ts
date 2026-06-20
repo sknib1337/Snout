@@ -30,7 +30,8 @@ app.use(express.urlencoded({ extended: true, limit: config.bodyLimit, verify: ra
 
 app.get("/health", (_req, res) => res.json({ ok: true, model: config.anthropicModel }));
 
-app.use("/api", apiLimiter, apiAuth, assessments, catalog);
+const apiRouters = config.enableCatalog ? [assessments, catalog] : [assessments];
+app.use("/api", apiLimiter, apiAuth, ...apiRouters);
 app.use("/webhooks", webhookLimiter, webhooks);
 app.use("/slack", webhookLimiter, slack);
 app.use("/teams", webhookLimiter, teams);

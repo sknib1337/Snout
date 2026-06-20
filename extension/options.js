@@ -10,6 +10,7 @@ async function init() {
   $("ignore").value = (s.ignoreDomains || []).join("\n");
   $("ta-url").value = s.trustAgentUrl || "";
   $("ta-token").value = s.trustAgentToken || "";
+  $("autosync").value = s.autoSyncMinutes || 0;
 }
 
 $("save").addEventListener("click", async () => {
@@ -21,6 +22,7 @@ $("save").addEventListener("click", async () => {
       ignoreDomains: lines($("ignore").value),
       trustAgentUrl: $("ta-url").value.trim(),
       trustAgentToken: $("ta-token").value.trim(),
+      autoSyncMinutes: Math.max(0, parseInt($("autosync").value, 10) || 0),
     },
   });
   $("status").textContent = "Saved ✓";
