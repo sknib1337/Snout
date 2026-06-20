@@ -4,6 +4,7 @@ import helmet from "helmet";
 import morgan from "morgan";
 import { config, assertStartup } from "./config";
 import { assessments } from "./routes/assessments";
+import { catalog } from "./routes/catalog";
 import { webhooks } from "./routes/webhooks";
 import { slack } from "./routes/slack";
 import { teams } from "./routes/teams";
@@ -29,7 +30,7 @@ app.use(express.urlencoded({ extended: true, limit: config.bodyLimit, verify: ra
 
 app.get("/health", (_req, res) => res.json({ ok: true, model: config.anthropicModel }));
 
-app.use("/api", apiLimiter, apiAuth, assessments);
+app.use("/api", apiLimiter, apiAuth, assessments, catalog);
 app.use("/webhooks", webhookLimiter, webhooks);
 app.use("/slack", webhookLimiter, slack);
 app.use("/teams", webhookLimiter, teams);

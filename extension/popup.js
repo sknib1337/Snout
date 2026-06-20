@@ -88,6 +88,12 @@ document.querySelectorAll(".chip").forEach((c) =>
 
 $("pause").addEventListener("click", async () => { await send({ type: "setPaused", paused: !db.settings.paused }); refresh(); });
 $("options").addEventListener("click", () => chrome.runtime.openOptionsPage());
+$("sync").addEventListener("click", async () => {
+  toast("Syncing to Trust Agent…");
+  const r = await send({ type: "syncCatalog" });
+  if (r?.ok) toast(`Synced ${r.accepted} app${r.accepted === 1 ? "" : "s"} to Trust Agent`);
+  else toast(r?.error || "Sync failed — set the URL in Options.");
+});
 $("clear").addEventListener("click", async () => { if (confirm("Clear all captured apps?")) { await send({ type: "clearAll" }); refresh(); } });
 $("export").addEventListener("click", () => {
   const blob = new Blob([JSON.stringify(Object.values(db.apps), null, 2)], { type: "application/json" });

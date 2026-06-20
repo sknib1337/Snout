@@ -29,3 +29,25 @@ export async function deleteAssessment(id) {
   const r = await fetch(`${BASE}/assessments/${id}`, { method: "DELETE", headers: headers(false) });
   if (!r.ok) throw new Error("Delete failed");
 }
+
+// --- Discovered apps (from the browser extension / catalog pipeline) ---
+
+export async function listDiscovered() {
+  const r = await fetch(`${BASE}/catalog`, { headers: headers(false) });
+  if (!r.ok) throw new Error("Failed to load discovered apps");
+  return r.json();
+}
+
+export async function assessDiscovered(domain) {
+  const r = await fetch(`${BASE}/catalog/${encodeURIComponent(domain)}/assess`, { method: "POST", headers: headers() });
+  if (!r.ok) {
+    const e = await r.json().catch(() => ({}));
+    throw new Error(e.error || `Assessment failed (${r.status})`);
+  }
+  return r.json();
+}
+
+export async function deleteDiscovered(domain) {
+  const r = await fetch(`${BASE}/catalog/${encodeURIComponent(domain)}`, { method: "DELETE", headers: headers(false) });
+  if (!r.ok) throw new Error("Delete failed");
+}
