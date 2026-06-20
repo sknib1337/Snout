@@ -4,6 +4,7 @@ import { verifySlack } from "../lib/slack";
 import { assessApp } from "../agent";
 import { store } from "../store";
 import { readiness } from "../controls";
+import { forChat } from "../security/sanitize";
 
 export const slack = Router();
 
@@ -28,7 +29,7 @@ slack.post("/trust", async (req, res) => {
         response_type: "in_channel",
         blocks: [
           { type: "header", text: { type: "plain_text", text: `${a.app} — Trust ${a.score}/100 · ${readiness(a.score)}` } },
-          { type: "section", text: { type: "mrkdwn", text: `*Verdict:* ${a.recommendation}\n${a.summary}` } },
+          { type: "section", text: { type: "mrkdwn", text: `*Verdict:* ${a.recommendation}\n${forChat(a.summary)}` } },
           { type: "actions", elements: [
             { type: "button", text: { type: "plain_text", text: "Open full report" }, url: `${config.appBaseUrl}/?a=${a.id}` },
           ] },

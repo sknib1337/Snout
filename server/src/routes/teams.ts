@@ -4,6 +4,7 @@ import { hmacBase64, safeEqual } from "../lib/hmac";
 import { assessApp } from "../agent";
 import { store } from "../store";
 import { readiness } from "../controls";
+import { forChat } from "../security/sanitize";
 
 export const teams = Router();
 
@@ -43,7 +44,7 @@ teams.post("/trust", async (req, res) => {
   if (existing) {
     return res.json(card(
       `${existing.app} — Trust ${existing.score}/100 · ${readiness(existing.score)}`,
-      [`Verdict: ${existing.recommendation}`, existing.summary],
+      [`Verdict: ${existing.recommendation}`, forChat(existing.summary)],
       `${config.appBaseUrl}/?a=${existing.id}`,
     ));
   }
@@ -52,5 +53,5 @@ teams.post("/trust", async (req, res) => {
   // reply, upgrade this route to a Bot Framework bot and post a proactive
   // message using the saved conversation reference (see README).
   assessApp({ name: appName }).then((a) => store.upsertByApp(a)).catch((e) => console.error("[teams]", e.message));
-  res.json(card("Assessment started", [`Researching ${appName} — open Trust Agent in ~30s for the full report.`], config.appBaseUrl));
+  res.json(card("Assessment started", [`Researching ${forChat(appName, 120)} — open Trust Agent in ~30s for the full report.`], config.appBaseUrl));
 });

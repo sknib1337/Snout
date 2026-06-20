@@ -129,13 +129,18 @@ production, implement the `Store` interface in `server/src/store.ts` against Pos
 (one `assessments` table, JSONB `data`, unique `lower(app)` index for upsert) and swap
 the export; nothing else changes.
 
-## Security notes
+## Security
 
-- The Anthropic key is server-side only.
-- Webhooks are verified with constant-time HMAC / Slack signatures; replay window capped at 5 min.
-- Scope catalog API tokens (Okta SSWS, ServiceNow, NetSuite) to read-only.
-- Put the server behind your own auth/ingress; `API_TOKEN` is a lightweight gate, not a substitute for it.
-- Verdicts are evidence-backed research, not legal/security sign-off — a human approves.
+This app runs an LLM over untrusted web content and exposes a compute-heavy endpoint, so it ships hardened by default. Highlights:
+
+- **Prompt injection (OWASP LLM01):** untrusted input is fenced and labelled as data; the system prompt refuses embedded instructions; and the model's JSON is run through a strict schema that coerces verdicts, clamps lengths, and drops unsafe citation URLs. Least-privilege tooling (read-only `web_search`).
+- **Auth (API2):** `/api/*` requires a bearer token; the server **fails closed in production** (won't start without `API_TOKEN` unless `ALLOW_ANON=true`).
+- **Resource abuse (API4/API6):** per-client rate limits, a stricter `/assess` bucket, a concurrency cap, body-size limits, and request timeouts.
+- **SSRF (API7):** all URLs (input + citations) are allowlisted to public http(s); private/loopback/metadata hosts blocked.
+- **Misconfiguration (API8):** helmet + CSP + strict CORS; leak-free error handler; request ids.
+- **Output handling (LLM05):** Slack/Teams text is escaped and broadcast-mentions stripped; citation links are re-validated client-side.
+
+Full threat model, control mapping, and a deployment hardening checklist are in **[SECURITY.md](./SECURITY.md)**. Verdicts are evidence-backed research, not sign-off — a human approves.
 
 ## Tests
 
