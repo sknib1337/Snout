@@ -3,8 +3,9 @@
   "name": "Trust Agent — Shadow SaaS & Auth Capture",
   "version": "1.0.0",
   "description": "Discover shadow SaaS and shadow authentication (local passwords, consumer/social IdP logins, OAuth grants) as you browse. Local-first; export to Trust Agent.",
-  "permissions": ["storage", "webNavigation"],
+  "permissions": ["storage", "webNavigation", "alarms"],
   "host_permissions": ["http://*/*", "https://*/*"],
+  "storage": { "managed_schema": "managed_schema.json" },
   "background": { "service_worker": "background.js", "type": "module" },
   "action": {
     "default_popup": "popup.html",

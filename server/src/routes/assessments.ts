@@ -3,8 +3,15 @@ import { z } from "zod";
 import { assessApp } from "../agent";
 import { store } from "../store";
 import { assessLimiter, assessSlots } from "../security/limits";
+import { config } from "../config";
 
 export const assessments = Router();
+
+// Lets the web app discover which capabilities are enabled (e.g. show/hide the
+// Discovered view). No secrets — safe behind the normal API auth.
+assessments.get("/config", (_req, res) => {
+  res.json({ features: { catalog: config.enableCatalog }, model: config.anthropicModel });
+});
 
 const AssessBody = z.object({
   name: z.string().min(1).max(120),

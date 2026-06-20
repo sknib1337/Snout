@@ -42,6 +42,10 @@
   <input id="ta-token" type="password" placeholder="bearer token (if API_TOKEN is set)" />
   <div class="hint">Used by the “Assess in Trust Agent” button to POST to /api/assess.</div>
 
+  <label>Auto-sync interval (minutes)</label>
+  <input id="autosync" type="number" min="0" placeholder="0 = manual sync only" />
+  <div class="hint">If &gt; 0, the catalog is pushed to /api/catalog automatically (minimum 5 minutes).</div>
+
   <button class="save" id="save">Save</button>
   <span id="status" style="margin-left:12px;font-size:12px;color:var(--grn);"></span>
 

@@ -35,6 +35,11 @@ export const config = {
   teamsSecurityToken: process.env.TEAMS_SECURITY_TOKEN || "",
 
   dataDir: process.env.DATA_DIR || "./data",
+
+  // Capability flag: when false, the catalog ingest/discovered routes are not
+  // mounted and the dashboard hides the Discovered view (ship with or without
+  // the shadow-discovery extension from one build).
+  enableCatalog: process.env.ENABLE_CATALOG !== "false",
 };
 
 export function assertStartup() {

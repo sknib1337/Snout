@@ -54,10 +54,43 @@ if the server has `API_TOKEN` set, the **API token**. Then:
 The extension holds host permission for all sites, so these cross-origin calls work
 without server CORS changes.
 
+## Managed deployment (Chrome Enterprise, zero-touch)
+
+For fleet rollout, force-install the extension via Google Admin console (or Windows
+GPO / macOS plist) and push configuration so employees never touch the options page.
+The extension reads `chrome.storage.managed` against `managed_schema.json` and seeds
+itself; managed values win over local settings, and `autoSyncMinutes` enables periodic
+background sync.
+
+Example managed configuration (Admin console → the extension → "Policy for extensions"):
+
+```json
+{
+  "corpIdpDomains": { "Value": ["yourco.okta.com", "login.microsoftonline.com"] },
+  "sanctionedApps": { "Value": ["salesforce.com", "atlassian.net"] },
+  "trustAgentUrl":  { "Value": "https://trust-agent.yourco.com" },
+  "trustAgentToken":{ "Value": "REDACTED" },
+  "autoSyncMinutes":{ "Value": 30 }
+}
+```
+
+**Feasibility notes (docs vs. reality):**
+- `chrome.storage.managed` only populates when the extension is installed under
+  enterprise management; unmanaged sideloads fall back to the options page.
+- `host_permissions: <all_urls>` plus a password-form content script will draw scrutiny
+  in any security review and in Chrome Web Store review — distribute as a **private/
+  unlisted** Web Store item or self-host the CRX and force-install by ID.
+- Pushing `trustAgentToken` via policy is convenient but puts a bearer token on every
+  endpoint; prefer a short-lived/per-fleet token and rotate it, or terminate auth at an
+  ingress the extension reaches without a token.
+- `autoSyncMinutes` is clamped to a 5-minute floor by the Chrome alarms API.
+
 ## Permissions
 
 - `storage` — local catalog + settings.
 - `webNavigation` — observe auth-flow navigations.
+- `alarms` — periodic auto-sync when configured.
+- `storage.managed` — read enterprise policy (zero-touch config).
 - `host_permissions: <all_urls>` — required to observe logins across the SaaS you use
   and to call your Trust Agent server. The extension never sends browsing data anywhere
   on its own.
