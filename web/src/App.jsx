@@ -249,13 +249,18 @@ function CapStrip({ capabilities }) {
 }
 function VerdictPill({ verdict }) { const v = verdictOf(verdict); return <span className={`pill ${v.pill}`}><v.Icon className="w-3 h-3" />{v.label}</span>; }
 
+function safeHref(u) {
+  try { const x = new URL(u); return (x.protocol === "http:" || x.protocol === "https:") ? x.href : null; }
+  catch { return null; }
+}
 function Citations({ items }) {
-  if (!items?.length) return null;
+  const safe = (items || []).map((c) => ({ ...c, href: safeHref(c.url) })).filter((c) => c.href);
+  if (!safe.length) return null;
   return (
     <div className="flex flex-wrap gap-1.5 mt-2">
-      {items.map((c, i) => (
-        <a key={i} href={c.url} target="_blank" rel="noopener noreferrer" className="cite">
-          <ExternalLink className="w-3 h-3 shrink-0" /><span className="truncate">{c.title || c.url}</span>
+      {safe.map((c, i) => (
+        <a key={i} href={c.href} target="_blank" rel="noopener noreferrer nofollow" className="cite">
+          <ExternalLink className="w-3 h-3 shrink-0" /><span className="truncate">{c.title || c.href}</span>
         </a>
       ))}
     </div>
