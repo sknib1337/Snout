@@ -166,6 +166,21 @@ npm test            # server: scoring + HMAC (vitest)
 - Settings: default reviewers, score thresholds, secret rotation
 - Bot Framework Teams bot for true async replies
 
+## Releases
+
+Versioning follows SemVer; changes are recorded in [CHANGELOG.md](./CHANGELOG.md).
+To cut a release: bump `extension/manifest.json` to match, add a `## [x.y.z]` changelog
+entry, then tag and push:
+
+```bash
+git tag -a v1.0.0 -m "Trust Agent v1.0.0"
+git push --follow-tags
+```
+
+The `Release` workflow verifies the tag matches the manifest version, builds a
+Web-Store-ready extension zip (manifest at the zip root), and publishes a GitHub Release
+with that zip attached and the changelog section as notes — one click to distribute.
+
 ## License
 
 MIT — see [LICENSE](./LICENSE).
