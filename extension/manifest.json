@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Trust Agent — Shadow SaaS & Auth Capture",
+  "version": "1.0.0",
+  "description": "Discover shadow SaaS and shadow authentication (local passwords, consumer/social IdP logins, OAuth grants) as you browse. Local-first; export to Trust Agent.",
+  "permissions": ["storage", "webNavigation"],
+  "host_permissions": ["http://*/*", "https://*/*"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Shadow SaaS & Auth",
+    "default_icon": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
+  },
+  "options_page": "options.html",
+  "content_scripts": [
+    { "matches": ["http://*/*", "https://*/*"], "js": ["content.js"], "run_at": "document_idle", "all_frames": false }
+  ],
+  "icons": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
+}

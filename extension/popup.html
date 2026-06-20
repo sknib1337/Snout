@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="bar">
+    <div class="brand">
+      <div class="mark">⛨</div>
+      <div>
+        <div class="title">Shadow SaaS &amp; Auth</div>
+        <div class="sub" id="sub">scanning…</div>
+      </div>
+    </div>
+    <button id="pause" class="ghost" title="Pause / resume capture">⏸</button>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="num" id="s-apps">0</div><div class="lbl">Apps</div></div>
+    <div class="stat"><div class="num red" id="s-shadow">0</div><div class="lbl">Shadow</div></div>
+    <div class="stat"><div class="num blue" id="s-oauth">0</div><div class="lbl">OAuth grants</div></div>
+  </div>
+
+  <div class="filters">
+    <button class="chip active" data-f="all">All</button>
+    <button class="chip" data-f="shadow">Shadow only</button>
+    <button class="chip" data-f="oauth">OAuth grants</button>
+  </div>
+
+  <div id="list" class="list"></div>
+  <div id="empty" class="empty" hidden>No apps captured yet. Log into a SaaS tool and it will appear here.</div>
+
+  <div class="foot">
+    <button id="export" class="ghost">Export JSON</button>
+    <button id="options" class="ghost">Options</button>
+    <button id="clear" class="ghost danger">Clear</button>
+  </div>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

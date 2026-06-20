@@ -117,6 +117,13 @@ proactive message — `routes/teams.ts` marks exactly where to slot that in.
 
 ---
 
+**Browser extension (shadow SaaS & auth discovery)** — `extension/` is a Manifest V3
+Chrome extension that watches how you authenticate as you browse and catalogs shadow
+SaaS and shadow auth (local passwords, consumer/social IdP logins, OAuth consent
+grants) — all local-first. Each discovered app has a one-click **Assess in Trust Agent**
+button that calls `/api/assess`. Load it via `chrome://extensions → Load unpacked`. See
+`extension/README.md`.
+
 ## Configuration
 
 See `server/.env.example` and `web/.env.example`. Each webhook route returns `501` until
