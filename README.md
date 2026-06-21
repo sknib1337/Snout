@@ -1,26 +1,46 @@
 # Snout
 
-Agent-driven due diligence for the **critical enterprise SaaS controls** every app
-must support before it touches your identity fabric. Name a SaaS tool and the agent
-researches the live web — vendor docs, trust centers, the OpenID Foundation — then
-scores six controls with citations and drafts a governance verdict your sourcing,
-finance, third-party risk, security architecture, and IT engineering teams can all
-trust. It exists to replace the slow, committee-driven (RAPID) review with something
-fast and evidence-backed.
+**Open, transparent, IPSIE-aligned identity-trust scoring for SaaS vendors.** Name a SaaS
+tool and the agent researches the live web — vendor docs, trust centers, the OpenID
+Foundation — then scores six **IPSIE-aligned identity controls** with citations and drafts a
+governance verdict your sourcing, finance, third-party risk, security architecture, and IT
+engineering teams can all trust. It exists to replace the slow, committee-driven (RAPID)
+review with something fast and evidence-backed.
 
-The six controls:
+The six controls map to the control areas of the OpenID Foundation's **IPSIE**
+(Interoperability Profile for Secure Identity in the Enterprise) — the emerging standard for
+how SaaS must interoperate with the enterprise identity fabric — each anchored to a concrete
+open standard:
 
-| Control | Standard(s) |
-|---|---|
-| Single Sign-On | SAML 2.0 / OIDC |
-| User Lifecycle | SCIM 2.0 (provision + deprovision) |
-| Entitlements | SCIM groups / RBAC |
-| Risk Signal Sharing | CAEP / Shared Signals Framework |
-| Logout | RP-initiated / Single Logout |
-| Token Revocation | OAuth 2.0 revocation / CAE |
+| Control | Standard(s) | IPSIE area |
+|---|---|---|
+| Single Sign-On | SAML 2.0 / OIDC | Federated authentication |
+| User Lifecycle | SCIM 2.0 (provision + deprovision) | Lifecycle management |
+| Entitlements | SCIM groups / RBAC | Authorization & entitlements |
+| Risk Signal Sharing | CAEP / Shared Signals Framework | Continuous access evaluation |
+| Logout | RP-initiated / Single Logout | Session management |
+| Token Revocation | OAuth 2.0 revocation / CAE | Credential & token management |
 
 The **trust score** is a transparent mean of the six control weights
-(Supported 100 · Partial 55 · Unverified 25 · Not found 8) — auditable, not a black box.
+(Supported 100 · Partial 55 · Unverified 25 · Not found 8) — auditable, not a black box. The
+full scoring spec is public in **[METHODOLOGY.md](./METHODOLOGY.md)**.
+
+> _Alignment, not certification: Snout maps a vendor's posture to IPSIE-aligned control areas
+> from public evidence; it does not assert IPSIE conformance on a vendor's behalf._
+
+## Scope — what Snout is, and isn't
+
+Snout owns one job and does it transparently: **open, evidence-cited vetting of a SaaS
+vendor's IPSIE-aligned identity controls, for the buy/keep decision.**
+
+- ✅ **It is** a discovery and assessment tool — it *sees and reports* identity-control
+  posture with citations, and produces a governance verdict a human signs off on.
+- ❌ **It is not** an inline enforcer. Snout does not block sign-ins, sit in the browser
+  request path, or terminate sessions. It **complements your ITDR / SSPM and your IdP** —
+  it reports the posture gap; enforcement is handed off to those systems.
+
+This boundary is deliberate: an open-source tool that *reports and vets transparently* is a
+better fit for the buy/keep decision than one that tries to enforce inline.
 
 ---
 

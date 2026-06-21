@@ -216,7 +216,7 @@ function Logo({ compact }) {
       </div>
       <div className="leading-tight">
         <div className="disp brandtext" style={{ fontSize: compact ? 16 : 18, fontWeight: 800 }}>Snout</div>
-        <div className="mono txt-secondary" style={{ fontSize: 9.5, letterSpacing: "0.18em", marginTop: 2, textTransform: "uppercase" }}>SaaS Controls</div>
+        <div className="mono txt-secondary" style={{ fontSize: 9.5, letterSpacing: "0.18em", marginTop: 2, textTransform: "uppercase" }}>IPSIE Controls</div>
       </div>
     </div>
   );
@@ -377,7 +377,7 @@ function EmptyState({ onNew }) {
       <div className="disp" style={{ fontSize: 18, fontWeight: 600, marginTop: 14, color: C.on }}>No assessments yet</div>
       <p className="txt-var mx-auto" style={{ fontSize: 13, marginTop: 6, maxWidth: 440, lineHeight: 1.6 }}>
         Name any SaaS tool — in the form, the sidebar terminal, or the search bar — and the agent researches its identity posture
-        against the six critical enterprise SaaS controls, cites its sources, and drafts a governance verdict.
+        against the six IPSIE-aligned identity controls, cites its sources, and drafts a governance verdict.
       </p>
       <button onClick={onNew} className="btn-primary mx-auto mt-5" style={{ padding: "0.55rem 1rem", fontSize: 11 }}><Plus className="w-4 h-4" /> Run first assessment</button>
     </div>
@@ -432,7 +432,7 @@ function AssessForm({ onRun, busy, error, prefill }) {
   return (
     <div className="max-w-2xl mx-auto panel p-6">
       <h2 className="disp" style={{ fontSize: 20, fontWeight: 600, color: C.on }}>Assess a SaaS tool</h2>
-      <p className="txt-var" style={{ fontSize: 13, marginTop: 6, lineHeight: 1.6 }}>The agent searches the live web — vendor docs, trust centers, and the OpenID Foundation — then scores the six critical enterprise SaaS controls and drafts a governance verdict with citations.</p>
+      <p className="txt-var" style={{ fontSize: 13, marginTop: 6, lineHeight: 1.6 }}>The agent searches the live web — vendor docs, trust centers, and the OpenID Foundation — then scores the six IPSIE-aligned identity controls and drafts a governance verdict with citations.</p>
       <div className="mt-5 space-y-4">
         <Field label="Application name" required><input value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} placeholder="e.g. Notion" disabled={busy} className="inp" style={{ padding: "0.55rem 0.75rem" }} /></Field>
         <div className="grid sm:grid-cols-2 gap-4">
@@ -508,7 +508,7 @@ function Detail({ a, onBack, onReassess }) {
       </div>
 
       <div>
-        <h3 className="caps txt-var mb-2.5">Critical enterprise SaaS controls</h3>
+        <h3 className="caps txt-var mb-2.5">IPSIE-aligned identity controls</h3>
         <div className="grid md:grid-cols-2 gap-3">
           {CAPS.map((c) => {
             const cap = a.capabilities?.[c.key] || {}; const Icon = c.icon;

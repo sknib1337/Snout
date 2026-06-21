@@ -16,8 +16,20 @@ All notable changes to Snout are documented here. The format is based on
   `/api/config` now report the effective provider/model.
 
 ### Changed
+- **Repositioned around IPSIE.** README and dashboard copy now frame the product as *open,
+  transparent, IPSIE-aligned identity-trust scoring* — the six controls are mapped to the
+  OpenID Foundation's IPSIE (Interoperability Profile for Secure Identity in the Enterprise)
+  control areas. Wording only; the controls, weights, and scoring are unchanged.
 - Upgraded core dependencies to current majors: **zod 3 → 4** (server; `z.record` now
   takes an explicit key schema) and **React 18 → 19** (web). No behavior changes.
+
+### Docs
+- Added **[METHODOLOGY.md](./METHODOLOGY.md)** — the public, reproducible specification of the
+  transparent-mean score, verdict weights, IPSIE-aligned control mapping, readiness bands, and
+  grounding modes.
+- Added a **Scope — what Snout is, and isn't** section to the README stating the product
+  boundary: Snout *sees and reports* identity-control posture and complements your ITDR/SSPM
+  and IdP; it is **not** an inline enforcer.
 - Rebranded the product from "Trust Agent" to **Snout**. Renamed packages, the
   extension, the `/snout` Slack/Teams command, the `SNOUT_WEBHOOK_SECRET` env var, and
   the extension `snoutUrl`/`snoutToken` settings. No functional changes.
