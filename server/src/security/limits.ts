@@ -1,14 +1,17 @@
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { Request } from "express";
 import crypto from "crypto";
 import { config } from "../config";
 
 // Key by bearer token (hashed) when present, else client IP. Requires
 // app.set("trust proxy", ...) so the IP is the real client behind a proxy.
-function clientKey(req: Request): string {
+// IPv6 is normalized to a subnet via express-rate-limit's ipKeyGenerator so a
+// client can't rotate addresses within a /64 to evade limits (and to satisfy the
+// ERR_ERL_KEY_GEN_IPV6 validation in express-rate-limit v8).
+export function clientKey(req: Request): string {
   const auth = req.header("authorization");
   if (auth) return "t:" + crypto.createHash("sha256").update(auth).digest("hex").slice(0, 16);
-  return "ip:" + (req.ip || "unknown");
+  return "ip:" + ipKeyGenerator(req.ip || "unknown");
 }
 
 // General API throttle.
