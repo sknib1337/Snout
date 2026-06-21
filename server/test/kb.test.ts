@@ -46,11 +46,20 @@ describe("KB load + merge", () => {
 });
 
 describe("eval harness (KB-only, deterministic)", () => {
-  it("measures accuracy against the labeled benchmark", async () => {
+  it("measures accuracy + depth metrics against the labeled benchmark", async () => {
     const m = await evalmod.evaluate(evalmod.loadBenchmark(), evalmod.kbPredict);
     expect(m.total).toBe(78);
+    // CI gate: accuracy must not regress below this floor.
     expect(m.accuracy).toBeGreaterThanOrEqual(0.6); // covered vendors match; uncovered + drift reveal gaps
     expect(m.coverage).toBeGreaterThan(0);
+    // depth metrics are present and well-formed
+    expect(m.perClass.supported.precision).toBeGreaterThan(0);
+    expect(m.perClass.supported.recall).toBeGreaterThan(0);
+    expect(m.confusion.supported.supported).toBeGreaterThan(0);
+    expect(m.calibration.length).toBeGreaterThan(0);
+    // confusion matrix totals reconcile with the label count
+    const confTotal = Object.values(m.confusion).reduce((a, row: any) => a + Object.values(row).reduce((x: number, y) => x + (y as number), 0), 0);
+    expect(confTotal).toBe(m.total);
   });
 });
 
