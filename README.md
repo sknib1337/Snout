@@ -296,7 +296,12 @@ the web-search path):
   SIEM/BI. These are *findings*, not inline enforcement (see **Scope**).
 - **Continuous monitoring** — forward a SaaS breach/CVE feed to `POST /webhooks/breach`, and
   re-assessments raise an **alert on any control regression** (e.g. `sso` drops from
-  `supported`). Alerts surface in the dashboard and at `GET /api/alerts`.
+  `supported`). Alerts surface in the dashboard and at `GET /api/alerts`. Set
+  `REASSESS_INTERVAL_HOURS` to run re-assessments on a schedule (stale apps re-checked
+  automatically, firing change alerts).
+- **OAuth scope risk is tiered** — write/admin scopes flag **high**, broad read access
+  **medium**, long-lived (offline) tokens **low**. Multi-sensor discovery now also dedupes on
+  the **registrable domain** (eTLD+1), so `saml.acme.com` and `app.acme.com` collapse to `acme.com`.
 - **Roles & audit** — the admin `API_TOKEN` can do everything; an optional read-only
   `API_VIEWER_TOKEN` can `GET` but not mutate. Every mutating call is written to an **audit log**
   (`GET /api/audit`, admin only) tagged with role and tenant (`TENANT_ID`). True per-tenant data

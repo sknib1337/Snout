@@ -13,6 +13,7 @@ import { teams } from "./routes/teams";
 import { apiAuth, writeGuard, auditMiddleware } from "./security/auth";
 import { apiLimiter, webhookLimiter } from "./security/limits";
 import { requestId, notFound, errorHandler } from "./security/errors";
+import { startReassessmentLoop } from "./scheduler";
 
 const app = express();
 
@@ -49,3 +50,4 @@ app.use(errorHandler);
 
 assertStartup();
 app.listen(config.port, () => console.log(`[snout] server on :${config.port} (${config.env})`));
+startReassessmentLoop();

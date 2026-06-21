@@ -7,6 +7,11 @@ All notable changes to Snout are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **Supporting depth (D4/D5).** Multi-sensor discovery now reduces hosts to the **registrable
+  domain** (eTLD+1, heuristic public-suffix set — no new dependency) so sensors dedupe correctly.
+  Optional **scheduled re-assessment** (`REASSESS_INTERVAL_HOURS`) re-runs stale assessments and
+  fires regression alerts, making monitoring continuous. OAuth scope risk in posture is now
+  **tiered** (write/admin = high, broad read = medium, offline = low).
 - **KB compounding loop** (`server/scripts/seed-kb.ts`, `GET /api/kb`, dashboard **Knowledge**
   view). `npm run seed:kb` batch-runs the agent over a vendor list to generate unverified
   proposals at scale; the Knowledge view is a verification queue where a human promotes

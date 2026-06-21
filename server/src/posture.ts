@@ -7,8 +7,10 @@ import { DiscoveredApp } from "./controls";
 export type Severity = "high" | "medium" | "low";
 export interface PostureFinding { id: string; severity: Severity; title: string; detail: string; }
 
-// Scopes that grant broad read/write/admin or long-lived access.
-const RISKY_SCOPE_RE = /(^|[._:\/])(admin|write|delete|manage|modify|full|owner|read_write|readwrite|offline_access|mail|email|drive|files?|contacts?|calendar|all)([._:\/]|$)/i;
+// Tiered OAuth scope risk (depth D5): write/admin scopes are high; broad read access
+// is medium; long-lived (offline) tokens are low.
+const HIGH_SCOPE_RE = /(^|[._:\/])(admin|write|delete|manage|modify|full|owner|read_write|readwrite|root|superuser)([._:\/]|$)/i;
+const BROAD_SCOPE_RE = /(^|[._:\/])(mail|email|drive|files?|contacts?|calendar|directory|all|read)([._:\/]|$)/i;
 const OFFLINE_RE = /offline_access|refresh_token/i;
 const SEV_WEIGHT: Record<Severity, number> = { high: 40, medium: 20, low: 8 };
 
@@ -21,13 +23,15 @@ export function posture(app: DiscoveredApp): { findings: PostureFinding[]; riskS
   if (m.password) f.push({ id: "local-password", severity: "high", title: "Local password login", detail: "A local username/password was used — credentials live outside IdP control (reuse / phishing risk)." });
   if (m.social) f.push({ id: "consumer-idp", severity: "medium", title: "Consumer / social IdP", detail: "Signed in via a consumer identity provider instead of the corporate IdP." });
 
-  const risky = new Set<string>();
+  const high = new Set<string>(), broad = new Set<string>();
   let offline = false;
   for (const g of app.oauth || []) for (const s of g.scopes || []) {
-    if (RISKY_SCOPE_RE.test(s)) risky.add(s);
+    if (HIGH_SCOPE_RE.test(s)) high.add(s);
+    else if (BROAD_SCOPE_RE.test(s)) broad.add(s);
     if (OFFLINE_RE.test(s)) offline = true;
   }
-  if (risky.size) f.push({ id: "risky-oauth-scope", severity: "medium", title: `Broad OAuth scopes (${risky.size})`, detail: `Granted broad scopes: ${[...risky].slice(0, 6).join(", ")}.` });
+  if (high.size) f.push({ id: "high-oauth-scope", severity: "high", title: `Write/admin OAuth scopes (${high.size})`, detail: `Granted high-risk scopes: ${[...high].slice(0, 6).join(", ")}.` });
+  if (broad.size) f.push({ id: "broad-oauth-scope", severity: "medium", title: `Broad OAuth scopes (${broad.size})`, detail: `Granted broad read scopes: ${[...broad].slice(0, 6).join(", ")}.` });
   if (offline) f.push({ id: "offline-token", severity: "low", title: "Long-lived token", detail: "App holds a refresh/offline token for persistent access." });
   if (m.federated && !m.sso) f.push({ id: "non-corp-federation", severity: "low", title: "Non-corporate federation", detail: "Federated login observed that isn't your corporate IdP." });
 

@@ -37,16 +37,24 @@ describe("IdP log adapters", () => {
     expect(idpAdapters.okta({ eventType: "user.session.start", target: [{ type: "AppInstance", displayName: "Mystery" }] })).toBeNull();
   });
 
-  it("entra: sign-in -> sso, host preserved from servicePrincipalName URL (no PSL reduction)", () => {
+  it("entra: sign-in -> sso, host reduced to registrable domain (eTLD+1)", () => {
     const u = idpAdapters.entra({
       appDisplayName: "Salesforce",
       servicePrincipalName: "https://saml.salesforce.com",
       createdDateTime: "2026-06-03T12:00:00Z",
       clientAppUsed: "Browser",
     });
-    expect(u?.domain).toBe("saml.salesforce.com"); // full host kept; www. is the only label stripped
+    expect(u?.domain).toBe("salesforce.com"); // saml.salesforce.com reduced to eTLD+1
     expect(u?.methods?.sso).toBe(true);
     expect(u?.idps).toContain("entra");
+  });
+
+  it("registrableDomain reduces subdomains and respects multi-part suffixes", async () => {
+    const { registrableDomain } = await import("../src/discovery");
+    expect(registrableDomain("app.notion.so")).toBe("notion.so");
+    expect(registrableDomain("saml.salesforce.com")).toBe("salesforce.com");
+    expect(registrableDomain("foo.bar.example.co.uk")).toBe("example.co.uk");
+    expect(registrableDomain("slack.com")).toBe("slack.com");
   });
 
   it("entra: appId-only event (no domain) -> null", () => {

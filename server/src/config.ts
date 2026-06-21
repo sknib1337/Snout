@@ -64,6 +64,13 @@ export const config = {
   checkCitations: process.env.CHECK_CITATIONS === "true",
   citationTimeoutMs: num(process.env.CITATION_TIMEOUT_MS, 6000),
 
+  // Scheduled re-assessment (depth D5/EPIC-OPERATE). Off by default (0). When set,
+  // apps not assessed within reassessStaleHours are re-run in small batches, which
+  // triggers change detection + alerts.
+  reassessIntervalHours: num(process.env.REASSESS_INTERVAL_HOURS, 0),
+  reassessStaleHours: num(process.env.REASSESS_STALE_HOURS, 168),
+  reassessBatch: num(process.env.REASSESS_BATCH, 3),
+
   // Capability flag: when false, the catalog ingest/discovered routes are not
   // mounted and the dashboard hides the Discovered view (ship with or without
   // the shadow-discovery extension from one build).

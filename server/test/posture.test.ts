@@ -19,15 +19,16 @@ describe("posture findings", () => {
     expect(riskScore).toBe(0);
   });
 
-  it("detects broad OAuth scopes and offline tokens", () => {
+  it("tiers OAuth scopes: write/admin high, broad read medium, offline low", () => {
     const { findings } = posture({
       ...base,
       methods: { sso: true, social: false, password: false, federated: false, oauthGrant: true },
-      oauth: [{ idp: "google", clientId: "c", scopes: ["openid", "https://www.googleapis.com/auth/drive", "offline_access"], ts: 1 }],
+      oauth: [{ idp: "google", clientId: "c", scopes: ["openid", "files.write", "https://www.googleapis.com/auth/drive", "offline_access"], ts: 1 }],
     });
-    const ids = findings.map((f) => f.id);
-    expect(ids).toContain("risky-oauth-scope");
-    expect(ids).toContain("offline-token");
+    const byId = Object.fromEntries(findings.map((f) => [f.id, f.severity]));
+    expect(byId["high-oauth-scope"]).toBe("high");   // files.write
+    expect(byId["broad-oauth-scope"]).toBe("medium"); // drive (read-ish/broad)
+    expect(byId["offline-token"]).toBe("low");
   });
 
   it("flags consumer IdP as medium", () => {

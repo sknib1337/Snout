@@ -9,6 +9,24 @@ import type { DiscoveredUpsert } from "./store";
 // A registrable host: 1+ labels + a TLD, lowercased, total <= 253 chars.
 export const DOMAIN_RE = /^(?=.{1,253}$)([a-z0-9-]{1,63}\.)+[a-z]{2,}$/;
 
+// Heuristic public-suffix set (depth D4): common multi-part TLDs so we reduce a host
+// to its registrable domain (eTLD+1) — e.g. saml.salesforce.com -> salesforce.com,
+// foo.example.co.uk -> example.co.uk — and sensors dedupe on the same key. This is a
+// curated subset, not the full Public Suffix List (kept dependency-free).
+const MULTI_PART_SUFFIXES = new Set([
+  "co.uk", "org.uk", "gov.uk", "ac.uk", "me.uk", "ltd.uk", "plc.uk", "net.uk",
+  "com.au", "net.au", "org.au", "edu.au", "gov.au", "co.nz", "org.nz", "govt.nz",
+  "co.jp", "or.jp", "ne.jp", "co.kr", "co.in", "net.in", "org.in", "co.za",
+  "com.br", "com.mx", "com.sg", "com.hk", "com.tr", "com.cn", "com.tw",
+]);
+
+/** Reduce a validated host to its registrable domain (eTLD+1) via the heuristic suffix set. */
+export function registrableDomain(host: string): string {
+  const parts = host.split(".");
+  if (parts.length <= 2) return host;
+  return MULTI_PART_SUFFIXES.has(parts.slice(-2).join(".")) ? parts.slice(-3).join(".") : parts.slice(-2).join(".");
+}
+
 // Personal mailbox providers we never catalog as "discovered SaaS".
 const CONSUMER_MAIL = new Set([
   "gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "live.com", "msn.com",
@@ -31,7 +49,7 @@ function hostFrom(raw: unknown): string | null {
     try { s = new URL(s.startsWith("//") ? "https:" + s : s).hostname; } catch { return null; }
   }
   s = s.replace(/^\[|\]$/g, "").replace(/:\d+$/, "").replace(/\.$/, "").replace(/^www\./, "");
-  return DOMAIN_RE.test(s) ? s : null;
+  return DOMAIN_RE.test(s) ? registrableDomain(s) : null;
 }
 
 /** First candidate that yields a valid registrable host, else null. */
