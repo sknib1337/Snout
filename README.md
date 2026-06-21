@@ -140,6 +140,18 @@ production, implement the `Store` interface in `server/src/store.ts` against Pos
 (one `assessments` table, JSONB `data`, unique `lower(app)` index for upsert) and swap
 the export; nothing else changes.
 
+## Demo
+
+A self-contained, offline demo of the dashboard (seeded with illustrative data — no
+server or API key needed) can be built with:
+
+```bash
+cd web && npm run build:demo   # produces web/dist/index.html — open it in a browser
+```
+
+A prebuilt `snout-demo.html` is also included at the repo root for convenience. The demo
+data is illustrative only; see [DISCLAIMER.md](./DISCLAIMER.md).
+
 ## Security
 
 This app runs an LLM over untrusted web content and exposes a compute-heavy endpoint, so it ships hardened by default. Highlights:
@@ -180,6 +192,20 @@ git push --follow-tags
 The `Release` workflow verifies the tag matches the manifest version, builds a
 Web-Store-ready extension zip (manifest at the zip root), and publishes a GitHub Release
 with that zip attached and the changelog section as notes — one click to distribute.
+
+## Disclaimer
+
+Snout's assessments are automated, AI-generated, and may be wrong — they are a research
+aid, not professional advice or sign-off, and a human must review every decision. It
+names third-party vendors for identification only and is not affiliated with them. The
+browser extension's monitoring is the deployer's legal responsibility. Please read
+[DISCLAIMER.md](./DISCLAIMER.md) before relying on any output.
+
+## Contributing
+
+Contributions are welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md) and our
+[Code of Conduct](./CODE_OF_CONDUCT.md). Report security issues privately per
+[SECURITY.md](./SECURITY.md), not via public issues.
 
 ## License
 

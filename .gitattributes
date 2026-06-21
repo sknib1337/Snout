@@ -1,0 +1,11 @@
+# Normalize line endings
+* text=auto eol=lf
+
+# Don't count the prebuilt demo / build output toward language statistics,
+# and collapse it in diffs (it's generated, not source).
+snout-demo.html linguist-generated=true
+**/dist/** linguist-generated=true
+*.min.js linguist-generated=true
+
+# Treat lockfiles as generated
+package-lock.json linguist-generated=true
