@@ -11,7 +11,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Verify extension version matches tag
         run: |
@@ -41,7 +41,7 @@ jobs:
           echo "**Install:** unzip and \`chrome://extensions → Load unpacked\`, or upload the zip to the Chrome Web Store (manifest is at the zip root)." >> RELEASE_NOTES.md
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: Snout ${{ github.ref_name }}
           body_path: RELEASE_NOTES.md
