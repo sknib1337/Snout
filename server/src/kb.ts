@@ -136,6 +136,17 @@ export async function getFacts(key: string): Promise<{ domain: string; vendor: s
   return { domain, vendor: override?.vendor || file?.vendor || domain, controls };
 }
 
+/** Every vendor known to the KB (repo files ∪ Store overrides), merged. Powers the
+ *  dashboard verification queue (D2). Sorted by vendor name. */
+export async function listAllVendors(): Promise<{ domain: string; vendor: string; controls: Partial<Record<ControlKey, ControlFact>> }[]> {
+  const files = await loadFiles();
+  const overrides = await store.listKbOverrides();
+  const domains = new Set<string>([...files.keys(), ...overrides.map((o) => o.domain)]);
+  const out = [];
+  for (const d of domains) out.push(await getFacts(d));
+  return out.sort((a, b) => a.vendor.localeCompare(b.vendor));
+}
+
 /** Only human-verified facts — the trusted priors injected into the agent. */
 export async function getVerifiedFacts(key: string): Promise<Partial<Record<ControlKey, ControlFact>>> {
   const { controls } = await getFacts(key);

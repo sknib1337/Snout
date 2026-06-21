@@ -9,7 +9,7 @@ import {
   Layers, ScanSearch, ChevronRight, Sparkles, ListChecks, ShieldAlert,
   LayoutDashboard, Boxes, Clock, TerminalSquare, Radar as RadarIcon, Trash2,
 } from "lucide-react";
-import { assess as apiAssess, listAssessments, listDiscovered, assessDiscovered, deleteDiscovered, getFeatures, verifyControl, listAlerts } from "./api";
+import { assess as apiAssess, listAssessments, listDiscovered, assessDiscovered, deleteDiscovered, getFeatures, verifyControl, listAlerts, listKb } from "./api";
 
 /* ============================================================ *
  * Snout — Critical Enterprise SaaS Controls console
@@ -862,6 +862,93 @@ function Discovered({ apps, busyDomain, onAssess, onOpen, onDelete }) {
   );
 }
 
+/* --------------------------- Knowledge base (verification queue) --------------------------- */
+
+const STALE_MS = 180 * 864e5;
+
+function KbRow({ v, c, saving, onVerify }) {
+  const f = v.controls?.[c.key];
+  const [verdict, setVerdict] = useState(f?.verdict || "supported");
+  const stale = f?.source === "human" && f?.verifiedAt && Date.now() - new Date(f.verifiedAt).getTime() > STALE_MS;
+  const busy = saving === v.domain + c.key;
+  const badge = !f ? null
+    : f.source === "human" ? { t: "✓ verified", cls: "pill-green" }
+    : f.source === "agent" ? { t: "proposed", cls: "pill-blue" }
+    : { t: "seed", cls: "pill-gray" };
+  return (
+    <div className="flex items-center gap-2 px-4 py-2.5 border-b" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+      <div className="shrink-0" style={{ width: 150 }}>
+        <div className="disp" style={{ fontSize: 13, fontWeight: 600, color: C.on }}>{c.label}</div>
+        <div className="mono txt-dim" style={{ fontSize: 10 }}>{c.standard}</div>
+      </div>
+      <div className="flex-1 flex items-center gap-1.5 flex-wrap">
+        <VerdictPill verdict={f?.verdict} />
+        {badge && <span className={`pill ${badge.cls}`} style={{ fontSize: 9, padding: "0.05rem 0.35rem" }}>{badge.t}</span>}
+        {typeof f?.confidence === "number" && <span className="mono txt-dim" style={{ fontSize: 9.5 }}>{Math.round(f.confidence * 100)}%</span>}
+        {stale && <span className="pill pill-amber" style={{ fontSize: 9, padding: "0.05rem 0.35rem" }}>stale</span>}
+      </div>
+      <div className="flex items-center gap-1.5 shrink-0">
+        <select value={verdict} onChange={(e) => setVerdict(e.target.value)} className="inp" style={{ padding: "0.15rem 0.35rem", fontSize: 10, width: "auto" }}>
+          {VERDICT_OPTS.map((o) => <option key={o} value={o}>{o}</option>)}
+        </select>
+        <button onClick={() => onVerify(v.domain, v.vendor, c.key, verdict)} disabled={busy} className="btn-ghost" style={{ padding: "0.2rem 0.5rem", fontSize: 10 }}>{busy ? "…" : "Verify"}</button>
+      </div>
+    </div>
+  );
+}
+
+function KnowledgeView() {
+  const [vendors, setVendors] = useState(null);
+  const [saving, setSaving] = useState(null);
+  const load = useCallback(async () => { try { setVendors(await listKb()); } catch { setVendors([]); } }, []);
+  useEffect(() => { load(); }, [load]);
+
+  if (vendors === null) return <div className="py-24 grid place-items-center txt-dim"><Loader2 className="w-6 h-6 spin" /></div>;
+
+  const verify = async (domain, vendor, control, verdict) => {
+    setSaving(domain + control);
+    try { await verifyControl(domain, control, { verdict, vendor, verifiedBy: "dashboard" }); await load(); }
+    catch (e) { alert(e.message || "Verify failed"); }
+    finally { setSaving(null); }
+  };
+
+  let pending = 0, stale = 0;
+  vendors.forEach((v) => CAPS.forEach((c) => {
+    const f = v.controls?.[c.key]; if (!f) return;
+    if (f.source !== "human") pending++;
+    else if (f.verifiedAt && Date.now() - new Date(f.verifiedAt).getTime() > STALE_MS) stale++;
+  }));
+
+  if (!vendors.length) return (
+    <div className="panel p-12 text-center">
+      <div className="mx-auto grid place-items-center" style={{ width: 52, height: 52, borderRadius: 10, background: "rgba(173,198,255,0.08)" }}><ListChecks className="w-6 h-6 txt-primary" /></div>
+      <div className="disp" style={{ fontSize: 18, fontWeight: 600, marginTop: 14, color: C.on }}>Knowledge base is empty</div>
+      <p className="txt-var mx-auto" style={{ fontSize: 13, marginTop: 6, maxWidth: 460, lineHeight: 1.6 }}>
+        Assess apps, or run <span className="mono">npm run seed:kb</span> to batch-generate proposals. Verified facts here are reused as trusted priors in future assessments.
+      </p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-3">
+        <KpiTile label="KB vendors" value={vendors.length} sub="in the knowledge base" Icon={ListChecks} />
+        <KpiTile label="Awaiting verification" value={pending} sub="agent / seed facts" subColor={C.tertiary} Icon={AlertTriangle} />
+        <KpiTile label="Stale verified" value={stale} sub="older than 180 days" subColor={C.error} Icon={Clock} />
+      </div>
+      {vendors.map((v) => (
+        <div key={v.domain} className="panel">
+          <div className="px-4 py-3 border-b hair flex items-center gap-2">
+            <span className="disp" style={{ fontWeight: 600, fontSize: 15, color: C.on }}>{v.vendor}</span>
+            <span className="mono txt-dim" style={{ fontSize: 11 }}>{v.domain}</span>
+          </div>
+          {CAPS.map((c) => <KbRow key={c.key} v={v} c={c} saving={saving} onVerify={verify} />)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* --------------------------- Sidebar nav --------------------------- */
 
 function NavItem({ icon: Icon, label, active, onClick, indicator }) {
@@ -894,9 +981,10 @@ const NAV = [
   { key: "command", label: "Command Center", icon: LayoutDashboard },
   { key: "catalog", label: "Assessments", icon: Boxes },
   { key: "discovered", label: "Discovered", icon: RadarIcon },
+  { key: "knowledge", label: "Knowledge", icon: ListChecks },
   { key: "integrations", label: "Integrations", icon: Network },
 ];
-const TITLES = { command: "Command Center", catalog: "Assessments", discovered: "Discovered Apps", assess: "New Assessment", integrations: "Integrations" };
+const TITLES = { command: "Command Center", catalog: "Assessments", discovered: "Discovered Apps", knowledge: "Knowledge Base", assess: "New Assessment", integrations: "Integrations" };
 
 export default function App() {
   const [view, setView] = useState("command");
@@ -1008,6 +1096,7 @@ export default function App() {
             {features.catalog && (
               <NavItem icon={RadarIcon} label="Discovered" active={navActive("discovered")} onClick={() => setView("discovered")} indicator={(() => { const sh = discovered.filter((d) => !d.methods?.sso).length; return sh ? <span className="badge" style={{ background: "rgba(255,180,171,0.12)", color: C.error, borderColor: "rgba(255,180,171,0.25)" }}>{sh}</span> : (discovered.length ? <span className="badge">{discovered.length}</span> : <span className="dot" style={{ background: C.outlineVar }} />); })()} />
             )}
+            <NavItem icon={ListChecks} label="Knowledge" active={navActive("knowledge")} onClick={() => setView("knowledge")} indicator={<span className="dot" style={{ background: C.outlineVar }} />} />
             <NavItem icon={Network} label="Integrations" active={navActive("integrations")} onClick={() => setView("integrations")} indicator={<span className="badge">5</span>} />
           </nav>
           <div className="px-4 mt-auto space-y-4">
@@ -1052,6 +1141,8 @@ export default function App() {
                 <Discovered apps={discovered} busyDomain={busyDomain} onAssess={handleAssessDiscovered} onOpen={open} onDelete={handleDeleteDiscovered} />
               ) : view === "assess" ? (
                 <AssessForm onRun={handleRun} busy={busy} error={error} prefill={prefill} />
+              ) : view === "knowledge" ? (
+                <KnowledgeView />
               ) : view === "integrations" ? (
                 <Integrations onAssessCatalog={(app) => goNew({ name: app.name, vendor: app.vendor })} />
               ) : view === "detail" && current ? (

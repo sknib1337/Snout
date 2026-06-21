@@ -7,6 +7,10 @@ All notable changes to Snout are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **KB compounding loop** (`server/scripts/seed-kb.ts`, `GET /api/kb`, dashboard **Knowledge**
+  view). `npm run seed:kb` batch-runs the agent over a vendor list to generate unverified
+  proposals at scale; the Knowledge view is a verification queue where a human promotes
+  proposals to verified and sees freshness (facts older than 180 days flagged stale).
 - **Assessment-correctness passes** (`server/src/verify.ts`, `server/src/citations.ts`), both
   off by default. `VERIFY_FINDINGS=true` runs an adversarial **refutation pass** that
   deterministically demotes verdicts it can't defend to `unknown` (never demoting human-verified

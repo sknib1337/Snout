@@ -89,6 +89,15 @@ export async function listAlerts() {
 
 // --- Knowledge base (verify / override a control fact) ---
 
+export async function listKb() {
+  if (DEMO) return [];
+  try {
+    const r = await fetch(`${BASE}/kb`, { headers: headers(false) });
+    if (!r.ok) return [];
+    return r.json();
+  } catch { return []; }
+}
+
 export async function verifyControl(key, control, body) {
   if (DEMO) { await wait(300); return { ok: true }; }
   const r = await fetch(`${BASE}/kb/${encodeURIComponent(key)}/${encodeURIComponent(control)}`, {

@@ -43,6 +43,14 @@ describe("KB load + merge", () => {
     expect(v.ulm?.verdict).toBe("supported");   // human
     expect(v.entitlements).toBeUndefined();     // seed, not verified
   });
+
+  it("listAllVendors merges repo files + overrides and sorts by vendor", async () => {
+    const all = await kb.listAllVendors();
+    const names = all.map((v) => v.vendor);
+    expect(names).toContain("Slack");
+    expect(names).toContain("GitHub");
+    expect([...names]).toEqual([...names].sort((a, b) => a.localeCompare(b))); // sorted
+  });
 });
 
 describe("eval harness (KB-only, deterministic)", () => {

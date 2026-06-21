@@ -1,13 +1,18 @@
 import { Router } from "express";
 import { z } from "zod";
 import { store } from "../store";
-import { getFacts } from "../kb";
+import { getFacts, listAllVendors } from "../kb";
 import { CONTROLS, ControlKey, ControlFact } from "../controls";
 import { sanitizeField, safeUrl } from "../security/sanitize";
 
 export const kb = Router();
 
 const CONTROL_KEYS = CONTROLS.map((c) => c.key) as ControlKey[];
+
+// GET /api/kb — all KB vendors (repo files + overrides), for the verification queue.
+kb.get("/kb", async (_req, res, next) => {
+  try { res.json(await listAllVendors()); } catch (e) { next(e); }
+});
 
 // GET /api/kb/:key — merged (repo file + override) facts for a vendor.
 kb.get("/kb/:key", async (req, res, next) => {

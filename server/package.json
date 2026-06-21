@@ -11,7 +11,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "eval": "tsx eval/run.ts",
-    "kb:validate": "tsx eval/validate.ts"
+    "kb:validate": "tsx eval/validate.ts",
+    "seed:kb": "tsx scripts/seed-kb.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",

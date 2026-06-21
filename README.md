@@ -117,6 +117,7 @@ docker compose up --build            # web on :8080, server on :8787
 | `POST` | `/api/catalog/:domain/assess` | assess a discovered app and link the result |
 | `DELETE` | `/api/catalog/:domain` | remove a discovered app |
 | `GET`  | `/api/catalog/export` | discovered apps + posture findings/risk score (SIEM/BI export) |
+| `GET`  | `/api/kb` | all KB vendors (repo files + overrides) — powers the verification queue |
 | `GET`  | `/api/kb/:key` | merged knowledge-base facts (repo file + overrides) for a vendor |
 | `POST` | `/api/kb/:key/:control` | human verify/override one control fact (`source: human`) |
 | `GET`  | `/api/alerts` | monitoring alerts (breach/CVE feed + control regressions) |
@@ -259,13 +260,17 @@ Snout keeps an **open, verified knowledge base** of IPSIE-control support per ve
   verify or override a control from the dashboard or `POST /api/kb/:key/:control`; agent
   findings are stored as unverified *proposals* so the KB grows over time.
 - Accuracy is **measured, not asserted**: a labeled benchmark + eval harness report per-control
-  and overall accuracy.
+  and overall accuracy (precision/recall, confusion, calibration).
+- The KB **compounds**: `npm run seed:kb` batch-runs the agent over a vendor list to generate
+  unverified proposals at scale; the dashboard **Knowledge** view is a verification queue where a
+  human promotes proposals to verified (and flags facts older than 180 days as stale).
 
 ```bash
 cd server
-npm run kb:validate   # validate every kb/<domain>.json against the schema
-npm run eval          # KB-only accuracy vs the benchmark → writes kb/EVAL.md
+npm run kb:validate     # validate every kb/<domain>.json against the schema
+npm run eval            # KB-only accuracy vs the benchmark → writes kb/EVAL.md
 npm run eval -- --live  # optional: run the real agent instead of KB-only (uses your provider)
+npm run seed:kb         # batch-generate KB proposals from scripts/seed-vendors.json (live; needs a key)
 ```
 
 Current measured numbers live in [kb/EVAL.md](./kb/EVAL.md). The scoring itself stays the
