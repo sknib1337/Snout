@@ -92,10 +92,15 @@ describe("AnthropicProvider request", () => {
     expect(captured.url).toBe("https://api.anthropic.com/v1/messages");
     expect(captured.init.headers["x-api-key"]).toBe("secret-key");
     expect(captured.init.headers["anthropic-version"]).toBe("2023-06-01");
+    expect(captured.init.headers["content-type"]).toBe("application/json");
     const body = JSON.parse(captured.init.body);
     expect(body.tools[0].type).toBe("web_search_20250305");
+    expect(body.tools[0].name).toBe("web_search");
+    expect(body.tools[0].max_uses).toBe(6);
     expect(body.max_tokens).toBe(4000);
     expect(body.model).toBe("claude-x");
+    expect(body.system).toBe("S");
+    expect(body.messages).toEqual([{ role: "user", content: "U" }]);
   });
 
   it("honors ANTHROPIC_BASE_URL (trailing slash trimmed)", async () => {
@@ -151,6 +156,20 @@ describe("error handling never leaks upstream bodies or keys", () => {
     expect(err.message).not.toContain("LEAKED-SECRET-TOKEN");
     expect(err.message).not.toContain("bk");
   });
+
+  it("Anthropic path also throws a fixed message without the upstream body", async () => {
+    setEnv({ ANTHROPIC_API_KEY: "ak" });
+    mockFetch(async () => ({ ok: false, status: 500, json: async () => ({}), text: async () => "x-api-key: ak SECRET-ECHO" }));
+    const { getProvider } = await import("../src/llm");
+    let err: any;
+    try {
+      await getProvider().complete({ system: "S", user: "U" });
+    } catch (e) {
+      err = e;
+    }
+    expect(err.message).toBe("LLM request failed: 500");
+    expect(err.message).not.toContain("SECRET-ECHO");
+  });
 });
 
 describe("assessApp always validates and enforces grounding", () => {
@@ -164,7 +183,11 @@ describe("assessApp always validates and enforces grounding", () => {
 
   it("clamps adversarial output through validateAgentOutput (Anthropic path)", async () => {
     setEnv({ ANTHROPIC_API_KEY: "k" });
-    mockFetch(async () => anthropicRes("noise before " + adversarial + " noise after"));
+    let body: any;
+    mockFetch(async (_url: string, init: any) => {
+      body = JSON.parse(init.body);
+      return anthropicRes("noise before " + adversarial + " noise after");
+    });
     const { assessApp } = await import("../src/agent");
     const rec = await assessApp({ name: "Evil Corp" });
     expect(Object.keys(rec.capabilities).sort()).toEqual(
@@ -176,26 +199,45 @@ describe("assessApp always validates and enforces grounding", () => {
     expect(rec.capabilities.sso.citations.every((c) => !c.url.includes("javascript"))).toBe(true);
     expect(rec.conditions.length).toBeLessThanOrEqual(10);
     expect(rec.grounding).toBe("web_search");
+    // Anthropic prompt is unchanged: fence present, no reduced-grounding note appended.
+    expect(body.messages[0].content).toContain("UNTRUSTED_INPUT");
+    expect(body.messages[0].content).not.toContain("web search is unavailable");
   });
 
-  it("reduced grounding (non-search provider): drops citations, downgrades positive verdicts, caps recommendation", async () => {
+  it("reduced grounding (non-search provider): drops citations, downgrades positive verdicts, preserves the rest, caps recommendation", async () => {
     setEnv({ LLM_PROVIDER: "openai", LLM_BASE_URL: "https://gw", LLM_API_KEY: "k", LLM_MODEL: "m" });
     const positive = JSON.stringify({
       app: "Acme",
       capabilities: {
         sso: { verdict: "supported", citations: [{ title: "looks real", url: "https://acme.com/sso" }] },
         ulm: { verdict: "partial", citations: [] },
+        entitlements: { verdict: "unsupported", citations: [] },
       },
       recommendation: "Approve",
     });
-    mockFetch(async () => openaiRes(positive));
+    let body: any;
+    mockFetch(async (_url: string, init: any) => {
+      body = JSON.parse(init.body);
+      return openaiRes(positive);
+    });
     const { assessApp } = await import("../src/agent");
     const rec = await assessApp({ name: "Acme" });
     expect(rec.grounding).toBe("reduced");
-    expect(rec.capabilities.sso.verdict).toBe("unknown");
-    expect(rec.capabilities.sso.citations).toEqual([]);
-    expect(rec.capabilities.ulm.verdict).toBe("unknown");
+    expect(rec.capabilities.sso.verdict).toBe("unknown"); // supported downgraded
+    expect(rec.capabilities.sso.citations).toEqual([]); // citations dropped
+    expect(rec.capabilities.ulm.verdict).toBe("unknown"); // partial downgraded
+    expect(rec.capabilities.entitlements.verdict).toBe("unsupported"); // negative verdict preserved
     expect(rec.recommendation).toBe("Hold");
+    // The reduced-grounding note is appended to the user prompt for non-search providers.
+    expect(body.messages[1].content).toContain("web search is unavailable");
+  });
+
+  it("reduced grounding does not soften a Reject recommendation", async () => {
+    setEnv({ LLM_PROVIDER: "openai", LLM_BASE_URL: "https://gw", LLM_API_KEY: "k", LLM_MODEL: "m" });
+    mockFetch(async () => openaiRes(JSON.stringify({ app: "X", recommendation: "Reject" })));
+    const { assessApp } = await import("../src/agent");
+    const rec = await assessApp({ name: "X" });
+    expect(rec.recommendation).toBe("Reject");
   });
 });
 
@@ -209,10 +251,41 @@ describe("safeBaseUrl trust boundary", () => {
     expect(safeUrl("http://127.0.0.1:4000")).toBeNull();
   });
 
+  it("normalizes a trailing slash", async () => {
+    const { safeBaseUrl } = await import("../src/security/sanitize");
+    expect(safeBaseUrl("https://gw.example.com/")).toBe("https://gw.example.com");
+  });
+
   it("rejects non-http(s) schemes and embedded credentials", async () => {
     const { safeBaseUrl } = await import("../src/security/sanitize");
     expect(safeBaseUrl("file:///etc/passwd")).toBeNull();
     expect(safeBaseUrl("https://user:pass@gw.example.com")).toBeNull();
     expect(safeBaseUrl("not a url")).toBeNull();
+  });
+});
+
+describe("assertStartup fail-closed", () => {
+  it("does not throw for anthropic with a key", async () => {
+    setEnv({ ANTHROPIC_API_KEY: "k" });
+    const { assertStartup } = await import("../src/config");
+    expect(() => assertStartup()).not.toThrow();
+  });
+
+  it("throws for LLM_PROVIDER=openai missing base/key/model", async () => {
+    setEnv({ LLM_PROVIDER: "openai" });
+    const { assertStartup } = await import("../src/config");
+    expect(() => assertStartup()).toThrow(/LLM_BASE_URL/);
+  });
+
+  it("throws for an unknown provider", async () => {
+    setEnv({ LLM_PROVIDER: "bogus" });
+    const { assertStartup } = await import("../src/config");
+    expect(() => assertStartup()).toThrow(/Unknown LLM_PROVIDER/);
+  });
+
+  it("throws for a credentialed ANTHROPIC_BASE_URL", async () => {
+    setEnv({ ANTHROPIC_API_KEY: "k", ANTHROPIC_BASE_URL: "https://user:pass@gw.example.com" });
+    const { assertStartup } = await import("../src/config");
+    expect(() => assertStartup()).toThrow(/ANTHROPIC_BASE_URL/);
   });
 });
