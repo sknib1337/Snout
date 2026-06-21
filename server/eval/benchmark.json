@@ -1,0 +1,16 @@
+[
+  { "vendor": "Slack", "domain": "slack.com",
+    "expected": { "sso": "supported", "ulm": "supported", "entitlements": "partial", "riskSignals": "unsupported", "logout": "partial", "tokenRevocation": "supported" } },
+  { "vendor": "GitHub", "domain": "github.com",
+    "expected": { "sso": "supported", "ulm": "supported", "entitlements": "partial", "riskSignals": "unknown", "logout": "partial", "tokenRevocation": "supported" } },
+  { "vendor": "Zoom", "domain": "zoom.us",
+    "expected": { "sso": "supported", "ulm": "supported", "entitlements": "partial", "riskSignals": "unknown", "logout": "partial", "tokenRevocation": "partial" } },
+  { "vendor": "Notion", "domain": "notion.so",
+    "expected": { "sso": "supported", "ulm": "supported", "entitlements": "partial", "riskSignals": "unknown", "logout": "unknown", "tokenRevocation": "unknown" } },
+  { "vendor": "Figma", "domain": "figma.com",
+    "expected": { "sso": "supported", "ulm": "supported", "entitlements": "partial", "riskSignals": "unknown", "logout": "partial", "tokenRevocation": "partial" } },
+  { "vendor": "Asana", "domain": "asana.com",
+    "expected": { "sso": "supported", "ulm": "supported", "entitlements": "partial", "riskSignals": "unknown", "logout": "partial", "tokenRevocation": "partial" } },
+  { "vendor": "Datadog", "domain": "datadoghq.com",
+    "expected": { "sso": "supported", "ulm": "supported", "entitlements": "partial", "riskSignals": "unknown", "logout": "partial", "tokenRevocation": "partial" } }
+]

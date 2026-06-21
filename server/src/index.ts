@@ -5,6 +5,7 @@ import morgan from "morgan";
 import { config, assertStartup } from "./config";
 import { assessments } from "./routes/assessments";
 import { catalog } from "./routes/catalog";
+import { kb } from "./routes/kb";
 import { webhooks } from "./routes/webhooks";
 import { slack } from "./routes/slack";
 import { teams } from "./routes/teams";
@@ -36,7 +37,7 @@ app.get("/health", (_req, res) =>
   }),
 );
 
-const apiRouters = config.enableCatalog ? [assessments, catalog] : [assessments];
+const apiRouters = config.enableCatalog ? [assessments, catalog, kb] : [assessments, kb];
 app.use("/api", apiLimiter, apiAuth, ...apiRouters);
 app.use("/webhooks", webhookLimiter, webhooks);
 app.use("/slack", webhookLimiter, slack);

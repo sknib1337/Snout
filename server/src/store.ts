@@ -1,7 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { config } from "./config";
-import { Assessment, DiscoveredApp, DiscoveredEvent } from "./controls";
+import { Assessment, DiscoveredApp, DiscoveredEvent, KbVendor, ControlFact, ControlKey } from "./controls";
 
 // Keep at most this many history events per app so the JSON store can't grow
 // unbounded from a chatty sensor. Oldest events fall off first.
@@ -31,6 +31,10 @@ export interface Store {
   upsertDiscovered(app: DiscoveredUpsert): Promise<DiscoveredApp>;
   removeDiscovered(domain: string): Promise<void>;
   linkAssessment(domain: string, assessmentId: string): Promise<void>;
+  // knowledge-base overrides (human verify/override; merged over repo kb/ files)
+  listKbOverrides(): Promise<KbVendor[]>;
+  getKbOverride(domain: string): Promise<KbVendor | undefined>;
+  upsertKbControl(domain: string, vendor: string, control: ControlKey, fact: ControlFact): Promise<KbVendor>;
 }
 
 /**
@@ -41,8 +45,10 @@ export interface Store {
 class JsonStore implements Store {
   private aFile = path.join(config.dataDir, "assessments.json");
   private dFile = path.join(config.dataDir, "discovered.json");
+  private kFile = path.join(config.dataDir, "kb.json");
   private aCache: Assessment[] | null = null;
   private dCache: DiscoveredApp[] | null = null;
+  private kCache: KbVendor[] | null = null;
 
   private async read<T>(file: string): Promise<T[]> {
     try { return JSON.parse(await fs.readFile(file, "utf8")); } catch { return []; }
@@ -127,6 +133,22 @@ class JsonStore implements Store {
     const list = await this.loadD();
     const app = list.find((a) => a.domain === domain);
     if (app) { app.assessmentId = assessmentId; this.dCache = list; await this.write(this.dFile, list); }
+  }
+
+  private async loadK() { return (this.kCache ??= await this.read<KbVendor>(this.kFile)); }
+  async listKbOverrides() { return [...(await this.loadK())]; }
+  async getKbOverride(domain: string) { return (await this.loadK()).find((v) => v.domain === domain); }
+  async upsertKbControl(domain: string, vendor: string, control: ControlKey, fact: ControlFact) {
+    const list = await this.loadK();
+    const now = new Date().toISOString();
+    let v = list.find((x) => x.domain === domain);
+    if (!v) { v = { vendor: vendor || domain, domain, updatedAt: now, controls: {} }; list.push(v); }
+    if (vendor) v.vendor = vendor;
+    v.controls[control] = fact;
+    v.updatedAt = now;
+    this.kCache = list;
+    await this.write(this.kFile, list);
+    return v;
   }
 }
 

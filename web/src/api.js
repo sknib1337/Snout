@@ -76,6 +76,17 @@ export async function assessDiscovered(domain) {
   return r.json();
 }
 
+// --- Knowledge base (verify / override a control fact) ---
+
+export async function verifyControl(key, control, body) {
+  if (DEMO) { await wait(300); return { ok: true }; }
+  const r = await fetch(`${BASE}/kb/${encodeURIComponent(key)}/${encodeURIComponent(control)}`, {
+    method: "POST", headers: headers(), body: JSON.stringify(body),
+  });
+  if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || `Verify failed (${r.status})`); }
+  return r.json();
+}
+
 export async function deleteDiscovered(domain) {
   if (DEMO) { const d = await demoState(); d.discovered = d.discovered.filter((a) => a.domain !== domain); return; }
   const r = await fetch(`${BASE}/catalog/${encodeURIComponent(domain)}`, { method: "DELETE", headers: headers(false) });

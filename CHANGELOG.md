@@ -7,6 +7,16 @@ All notable changes to Snout are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **Open IPSIE-control knowledge base + measured accuracy** (`server/src/kb.ts`, `kb/`,
+  `server/eval/`). Per-vendor control facts live in community-contributable `kb/<domain>.json`
+  files (validated by `npm run kb:validate`) plus runtime human verify/override via
+  `POST /api/kb/:key/:control`. The agent now reads **human-verified** facts first as trusted
+  structured priors, researches only the gaps, and returns a per-control **confidence**;
+  verified facts are authoritative and reused across assessments. Each control carries
+  provenance (`kb-verified` · `agent` · `kb-proposed`), surfaced in the dashboard with an
+  inline verify control; agent findings are stored as unverified proposals so the KB compounds.
+  A labeled benchmark + eval harness (`npm run eval`, `kb/EVAL.md`) measures accuracy
+  deterministically (KB-only) with an opt-in `--live` mode — accuracy is measured, not asserted.
 - **Multi-sensor discovery** (`server/src/discovery.ts`). Inventory apps + auth methods
   without the browser extension by forwarding telemetry to two new HMAC-signed webhooks:
   `POST /webhooks/idp/:source` (`okta` | `entra` | `google` sign-in/audit logs) and

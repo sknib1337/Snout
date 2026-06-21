@@ -1,8 +1,27 @@
 import { randomUUID } from "crypto";
-import { Assessment, computeScore } from "./controls";
+import { Assessment, ControlKey, ControlFact, ControlFinding, computeScore } from "./controls";
 import { sanitizeField, safeUrl, detectInjection } from "./security/sanitize";
 import { CleanAssessment, validateAgentOutput } from "./security/schema";
 import { getProvider } from "./llm";
+import { kbKeyFor, getVerifiedFacts, getFacts, recordProposals } from "./kb";
+
+// Render human-verified KB facts as a TRUSTED, structured priors block. Only
+// verdict/standards/safe citation URLs and a sanitized summary are included —
+// never free-text that could act as instructions.
+function renderKbPriors(facts: Partial<Record<ControlKey, ControlFact>>): string {
+  const keys = Object.keys(facts) as ControlKey[];
+  if (!keys.length) return "";
+  const lines = keys.map((k) => {
+    const f = facts[k]!;
+    const cites = f.citations.map((c) => c.url).filter(Boolean).slice(0, 2).join(" ");
+    return `- ${k}: ${f.verdict}${f.standards.length ? ` [${f.standards.join(", ")}]` : ""}${cites ? ` (evidence: ${cites})` : ""}`;
+  });
+  return (
+    `\n\n<<VERIFIED_KNOWLEDGE_BASE — curated by Snout maintainers, human-verified, TRUSTED ground truth (NOT the untrusted fields)>>\n` +
+    lines.join("\n") +
+    `\n<<END_VERIFIED_KNOWLEDGE_BASE>>\nUse these as established; research only the controls not listed here.`
+  );
+}
 
 export interface AssessInput {
   name: string;
@@ -32,14 +51,16 @@ Assess the named application against the CRITICAL ENTERPRISE SAAS CONTROLS model
 - logout: Session termination — RP-initiated logout, Single Logout (SLO), back-channel logout, session management.
 - tokenRevocation: OAuth 2.0 token revocation endpoint and/or Continuous Access Evaluation (CAE).
 
-For EACH control return: verdict (one of "supported","partial","unsupported","unknown"), standards (array), a concise evidence summary (<=280 chars), and 1-3 real citations (each {title,url}).
+For EACH control return: verdict (one of "supported","partial","unsupported","unknown"), confidence (a number 0-1 reflecting how strong your evidence is), standards (array), a concise evidence summary (<=280 chars), and 1-3 real citations (each {title,url}).
+
+Some controls may be supplied to you as VERIFIED KNOWLEDGE BASE facts (human-curated ground truth, clearly delimited and trusted). Treat those as established — do not contradict them; spend your research on the remaining/unknown controls.
 
 Then address (each <=280 chars): discoverability, onboardingRecovery, enterpriseDiscovery, usageMonitoring, usageRestrictions.
 
 Produce a governance verdict: recommendation (one of "Approve","Approve with conditions","Hold","Reject"), recommendationRationale (<=400 chars), conditions (array), ownerMap (array of {function, responsibility} covering Sourcing, Finance, Requesting BU, Third-Party Governance, Third-Party Risk, Security Architecture, IT Engineering), and risks (array of <=4).
 
 Output ONLY this JSON object:
-{"app":"","vendor":"","category":"","summary":"","capabilities":{"sso":{"verdict":"","standards":[],"summary":"","citations":[{"title":"","url":""}]},"ulm":{},"entitlements":{},"riskSignals":{},"logout":{},"tokenRevocation":{}},"extended":{"discoverability":"","onboardingRecovery":"","enterpriseDiscovery":"","usageMonitoring":"","usageRestrictions":""},"recommendation":"","recommendationRationale":"","conditions":[],"ownerMap":[{"function":"","responsibility":""}],"risks":[]}`;
+{"app":"","vendor":"","category":"","summary":"","capabilities":{"sso":{"verdict":"","confidence":0,"standards":[],"summary":"","citations":[{"title":"","url":""}]},"ulm":{},"entitlements":{},"riskSignals":{},"logout":{},"tokenRevocation":{}},"extended":{"discoverability":"","onboardingRecovery":"","enterpriseDiscovery":"","usageMonitoring":"","usageRestrictions":""},"recommendation":"","recommendationRationale":"","conditions":[],"ownerMap":[{"function":"","responsibility":""}],"risks":[]}`;
 
 function extractJson(text: string): unknown {
   const s = text.indexOf("{");
@@ -101,9 +122,17 @@ export async function assessApp(rawInput: AssessInput): Promise<Assessment> {
     `app_name: ${name}\nvendor: ${vendor || "(unknown)"}\nofficial_url: ${url || "(none)"}\nrequesting_context: ${context || "(none)"}\n` +
     `<<END_UNTRUSTED_INPUT>>\nToday is ${today}. Research this application and return ONLY the JSON assessment.`;
 
-  // 3b) Providers without live web search can't produce citation-backed evidence,
+  // 3b) Knowledge base: load human-verified facts for this vendor and inject them
+  // as trusted priors so the agent reuses prior verifications and researches only
+  // the gaps (EPIC-MOAT). Resolved key (a domain or vendor slug) ties the result
+  // back to the KB for verify/override.
+  const kbKey = kbKeyFor({ url, vendor, name });
+  const verified = await getVerifiedFacts(kbKey);
+
+  // 3c) Providers without live web search can't produce citation-backed evidence,
   // so steer them toward "unknown" (and enforce it deterministically in step 5b).
-  const ask2 = provider.supportsWebSearch ? ask : ask + REDUCED_GROUNDING_NOTE;
+  let ask2 = ask + renderKbPriors(verified);
+  if (!provider.supportsWebSearch) ask2 += REDUCED_GROUNDING_NOTE;
 
   // 4) Call the selected provider, then deterministically validate the output.
   const text = await provider.complete({ system: SYSTEM, user: ask2 });
@@ -115,6 +144,30 @@ export async function assessApp(rawInput: AssessInput): Promise<Assessment> {
   const grounding: "web_search" | "reduced" = provider.supportsWebSearch ? "web_search" : "reduced";
   if (grounding === "reduced") clean = applyReducedGrounding(clean);
 
+  // 5c) Merge the KB over the model output: human-verified facts are authoritative
+  // (they win even under reduced grounding, since they ARE citation-backed), and
+  // every control gets provenance + confidence. Then record the agent's non-KB
+  // findings as unverified KB proposals so the knowledge base compounds.
+  const { vendor: kbVendor, controls: allFacts } = await getFacts(kbKey);
+  const mergedCaps = {} as Record<ControlKey, ControlFinding>;
+  for (const key of Object.keys(clean.capabilities) as ControlKey[]) {
+    const v = verified[key];
+    if (v) {
+      mergedCaps[key] = {
+        verdict: v.verdict, standards: v.standards, summary: v.summary,
+        citations: v.citations, confidence: v.confidence, source: "kb-verified",
+      };
+    } else {
+      mergedCaps[key] = {
+        ...clean.capabilities[key],
+        source: allFacts[key]?.source === "agent" ? "kb-proposed" : "agent",
+      };
+    }
+  }
+  if (grounding === "web_search") {
+    try { await recordProposals(kbKey, clean.vendor || kbVendor || vendor, mergedCaps); } catch { /* best-effort */ }
+  }
+
   // 6) Build the record. Server controls id/score/assessedAt — never the model.
   const record: Assessment = {
     id: randomUUID(),
@@ -122,16 +175,17 @@ export async function assessApp(rawInput: AssessInput): Promise<Assessment> {
     vendor: clean.vendor || vendor,
     category: clean.category || "Uncategorized",
     summary: clean.summary,
-    capabilities: clean.capabilities,
+    capabilities: mergedCaps,
     extended: clean.extended,
     recommendation: clean.recommendation,
     recommendationRationale: clean.recommendationRationale,
     conditions: clean.conditions,
     ownerMap: clean.ownerMap,
     risks: clean.risks,
-    score: computeScore(clean.capabilities),
+    score: computeScore(mergedCaps),
     assessedAt: new Date().toISOString(),
     grounding,
+    kbKey,
   };
   return record;
 }

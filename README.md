@@ -116,7 +116,11 @@ docker compose up --build            # web on :8080, server on :8787
 | `POST` | `/api/catalog` | bulk-ingest discovered apps `{ apps: [...] }` (used by the extension's Sync) |
 | `POST` | `/api/catalog/:domain/assess` | assess a discovered app and link the result |
 | `DELETE` | `/api/catalog/:domain` | remove a discovered app |
+| `GET`  | `/api/kb/:key` | merged knowledge-base facts (repo file + overrides) for a vendor |
+| `POST` | `/api/kb/:key/:control` | human verify/override one control fact (`source: human`) |
 | `POST` | `/webhooks/catalog/:source` | `servicenow` \| `okta` \| `netsuite` — HMAC signed |
+| `POST` | `/webhooks/idp/:source` | `okta` \| `entra` \| `google` sign-in/audit logs → discovered (HMAC) |
+| `POST` | `/webhooks/email` | forwarded signup/account email metadata → discovered (HMAC) |
 | `POST` | `/slack/snout` | `/snout <app>` slash command |
 | `POST` | `/teams/snout` | Teams outgoing webhook / bot |
 
@@ -235,10 +239,35 @@ This app runs an LLM over untrusted web content and exposes a compute-heavy endp
 
 Full threat model, control mapping, and a deployment hardening checklist are in **[SECURITY.md](./SECURITY.md)**. Verdicts are evidence-backed research, not sign-off — a human approves.
 
+## Knowledge base & measured accuracy
+
+Snout keeps an **open, verified knowledge base** of IPSIE-control support per vendor under
+[`kb/`](./kb/) — one JSON file per vendor, community-contributable via PR (see
+[kb/README.md](./kb/README.md)). This is what makes assessments *compound*:
+
+- The agent **reads human-verified KB facts first** (injected as trusted, structured priors —
+  never as free-text instructions) and researches only the gaps, returning a per-control
+  **confidence**. Verified facts are authoritative and reused across every future assessment.
+- Each control carries **provenance** (`kb-verified` · `agent` · `kb-proposed`). Reviewers
+  verify or override a control from the dashboard or `POST /api/kb/:key/:control`; agent
+  findings are stored as unverified *proposals* so the KB grows over time.
+- Accuracy is **measured, not asserted**: a labeled benchmark + eval harness report per-control
+  and overall accuracy.
+
+```bash
+cd server
+npm run kb:validate   # validate every kb/<domain>.json against the schema
+npm run eval          # KB-only accuracy vs the benchmark → writes kb/EVAL.md
+npm run eval -- --live  # optional: run the real agent instead of KB-only (uses your provider)
+```
+
+Current measured numbers live in [kb/EVAL.md](./kb/EVAL.md). The scoring itself stays the
+transparent mean documented in [METHODOLOGY.md](./METHODOLOGY.md).
+
 ## Tests
 
 ```bash
-npm test            # server: scoring + HMAC (vitest)
+npm test            # server: scoring + HMAC + discovery + KB/eval (vitest)
 ```
 
 ## Roadmap ideas

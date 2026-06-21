@@ -56,6 +56,11 @@ The model can't separate instructions from data, so we don't rely on it to.
 - Discovery is **push-only**: Snout ingests logs/emails your own pipeline forwards. It stores **no IdP or mailbox credentials** and makes **no outbound calls** to ingest — so there is no new SSRF surface and no third-party secret to leak.
 - All ingested fields are length-clamped (`sanitizeField`) and the app key is validated against a strict domain regex; events without a resolvable domain are skipped (and counted), not stored. Per-app history is capped so a chatty sensor can't grow the store unbounded.
 
+### Knowledge base trust boundary (EPIC-MOAT)
+- The knowledge base (`kb/` repo files + Store overrides) is trusted *by provenance*: repo files land via reviewed PRs and overrides come from the **authenticated** `POST /api/kb/:key/:control`. Even so, KB content is treated as **data, not instructions**: facts are injected into the agent **structurally** (verdict + standards + a sanitized one-line summary), every KB citation URL is re-checked with `safeUrl()`, and KB text can never alter the model's instructions.
+- **Only human-verified facts** (`source: "human"`) are injected as trusted priors; `seed`/`agent` facts are candidates surfaced for review, never auto-trusted. `validateAgentOutput()` still runs on the model output and remains unbypassable; the deterministic transparent-mean score is computed server-side from the merged result.
+- Loading is defensive: a malformed or schema-invalid KB file is skipped (not fatal), all fields are length-clamped, and per-app proposal writes never overwrite a human-verified fact.
+
 ### Security misconfiguration (API8)
 - `helmet` security headers on the API; `x-powered-by` disabled; strict CORS allowlist (`WEB_ORIGIN`).
 - A Content-Security-Policy plus `X-Frame-Options`, `nosniff`, `Referrer-Policy`, and `Permissions-Policy` on the web tier (`web/nginx.conf`).

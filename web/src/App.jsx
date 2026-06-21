@@ -9,7 +9,7 @@ import {
   Layers, ScanSearch, ChevronRight, Sparkles, ListChecks, ShieldAlert,
   LayoutDashboard, Boxes, Clock, TerminalSquare, Radar as RadarIcon, Trash2,
 } from "lucide-react";
-import { assess as apiAssess, listAssessments, listDiscovered, assessDiscovered, deleteDiscovered, getFeatures } from "./api";
+import { assess as apiAssess, listAssessments, listDiscovered, assessDiscovered, deleteDiscovered, getFeatures, verifyControl } from "./api";
 
 /* ============================================================ *
  * Snout — Critical Enterprise SaaS Controls console
@@ -454,7 +454,30 @@ function AssessForm({ onRun, busy, error, prefill }) {
 
 /* --------------------------- Detail --------------------------- */
 
-function Detail({ a, onBack, onReassess }) {
+const VERDICT_OPTS = ["supported", "partial", "unsupported", "unknown"];
+
+// Inline human verify/override for one control (writes to the knowledge base).
+function ControlVerify({ a, controlKey, current, onVerify }) {
+  const [v, setV] = useState(current || "supported");
+  const [saving, setSaving] = useState(false);
+  if (!onVerify) return null;
+  const save = async () => {
+    setSaving(true);
+    await onVerify(a.kbKey || a.vendor || a.app, controlKey, v, a.vendor);
+    setSaving(false);
+  };
+  return (
+    <div className="flex items-center gap-1.5 mt-2.5">
+      <span className="caps txt-dim" style={{ fontSize: 9 }}>Verify</span>
+      <select value={v} onChange={(e) => setV(e.target.value)} className="inp" style={{ padding: "0.15rem 0.35rem", fontSize: 10, width: "auto" }}>
+        {VERDICT_OPTS.map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+      <button onClick={save} disabled={saving} className="btn-ghost" style={{ padding: "0.2rem 0.5rem", fontSize: 10 }}>{saving ? "…" : "Save to KB"}</button>
+    </div>
+  );
+}
+
+function Detail({ a, onBack, onReassess, onVerify }) {
   const radarData = CAPS.map((c) => ({ cap: c.short, value: verdictOf(a.capabilities?.[c.key]?.verdict).weight }));
   const rc = recChip(a.recommendation); const readiness = readinessOf(a.score); const band = scoreColor(a.score);
   return (
@@ -519,11 +542,19 @@ function Detail({ a, onBack, onReassess }) {
                     <div className="grid place-items-center" style={{ width: 32, height: 32, borderRadius: 6, background: C.scHigh }}><Icon className="w-4 h-4 txt-var" /></div>
                     <div><div className="disp" style={{ fontSize: 14, fontWeight: 600, color: C.on }}>{c.label}</div><div className="mono txt-dim" style={{ fontSize: 10.5 }}>{c.standard}</div></div>
                   </div>
-                  <VerdictPill verdict={cap.verdict} />
+                  <div className="flex flex-col items-end gap-1">
+                    <VerdictPill verdict={cap.verdict} />
+                    <div className="flex items-center gap-1">
+                      {cap.source === "kb-verified" && <span className="pill pill-green" style={{ fontSize: 8.5, padding: "0.05rem 0.35rem" }}>✓ KB verified</span>}
+                      {cap.source === "kb-proposed" && <span className="pill pill-gray" style={{ fontSize: 8.5, padding: "0.05rem 0.35rem" }}>KB proposed</span>}
+                      {typeof cap.confidence === "number" && <span className="mono txt-dim" style={{ fontSize: 9.5 }}>{Math.round(cap.confidence * 100)}%</span>}
+                    </div>
+                  </div>
                 </div>
                 {cap.standards?.length > 0 && <div className="flex flex-wrap gap-1 mt-2.5">{cap.standards.map((s, i) => <span key={i} className="chip">{s}</span>)}</div>}
                 <p className="txt-var" style={{ fontSize: 13.5, marginTop: 8, lineHeight: 1.6 }}>{cap.summary || "No evidence captured."}</p>
                 <Citations items={cap.citations} />
+                <ControlVerify a={a} controlKey={c.key} current={cap.verdict} onVerify={onVerify} />
               </div>
             );
           })}
@@ -920,6 +951,17 @@ export default function App() {
     try { await deleteDiscovered(domain); await refreshDiscovered(); } catch { /* ignore */ }
   }, [refreshDiscovered]);
 
+  const handleVerify = useCallback(async (key, control, verdict, vendor) => {
+    try {
+      await verifyControl(key, control, { verdict, vendor });
+      setAssessments((prev) => prev.map((a) => {
+        if (a.id !== currentId) return a;
+        const capabilities = { ...a.capabilities, [control]: { ...(a.capabilities?.[control] || {}), verdict, source: "kb-verified", confidence: 1 } };
+        return { ...a, capabilities, score: computeScore(capabilities) };
+      }));
+    } catch (e) { alert(e.message || "Verify failed"); }
+  }, [currentId]);
+
   const current = assessments.find((a) => a.id === currentId);
   const goNew = (pf = null) => { setPrefill(pf); setError(""); setView("assess"); };
   const open = (id) => { setCurrentId(id); setView("detail"); };
@@ -997,7 +1039,7 @@ export default function App() {
               ) : view === "integrations" ? (
                 <Integrations onAssessCatalog={(app) => goNew({ name: app.name, vendor: app.vendor })} />
               ) : view === "detail" && current ? (
-                <Detail a={current} onBack={() => setView("command")} onReassess={() => goNew({ name: current.app, vendor: current.vendor })} />
+                <Detail a={current} onBack={() => setView("command")} onReassess={() => goNew({ name: current.app, vendor: current.vendor })} onVerify={handleVerify} />
               ) : (
                 <CommandCenter assessments={assessments} onOpen={open} onNew={() => goNew()} goCatalog={() => setView("catalog")} />
               )}

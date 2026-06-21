@@ -23,6 +23,35 @@ export interface ControlFinding {
   standards: string[];
   summary: string;
   citations: { title: string; url: string }[];
+  // Per-control confidence (0..1) and where the finding came from. Optional so
+  // assessments stored before the knowledge base existed remain valid.
+  confidence?: number;
+  source?: "kb-verified" | "agent" | "kb-proposed";
+}
+
+// --- Knowledge base (EPIC-MOAT) -------------------------------------------
+// An open, per-vendor, per-control record of IPSIE-control support that is
+// reused across assessments. Seed facts live in repo files under kb/; human
+// verifications/overrides are persisted by the Store. Only human-verified facts
+// are injected into the agent as trusted priors.
+export type FactSource = "human" | "agent" | "seed";
+
+export interface ControlFact {
+  verdict: Verdict;
+  confidence: number; // 0..1
+  standards: string[];
+  summary: string;
+  citations: { title: string; url: string }[];
+  source: FactSource;
+  verifiedBy?: string;
+  verifiedAt?: string;
+}
+
+export interface KbVendor {
+  vendor: string;
+  domain: string;
+  updatedAt: string;
+  controls: Partial<Record<ControlKey, ControlFact>>;
 }
 
 export interface Assessment {
@@ -50,6 +79,8 @@ export interface Assessment {
   // search, "reduced" when it ran without search (verdicts are not citation-backed).
   // Optional so assessments stored before this field remain valid.
   grounding?: "web_search" | "reduced";
+  // Resolved knowledge-base key (domain or vendor slug) for verify/override reuse.
+  kbKey?: string;
 }
 
 export function computeScore(capabilities: Partial<Record<ControlKey, ControlFinding>>): number {
