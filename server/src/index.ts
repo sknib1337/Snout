@@ -28,7 +28,13 @@ app.use(morgan("tiny"));
 app.use(express.json({ limit: config.bodyLimit, verify: rawSaver }));
 app.use(express.urlencoded({ extended: true, limit: config.bodyLimit, verify: rawSaver }));
 
-app.get("/health", (_req, res) => res.json({ ok: true, model: config.anthropicModel }));
+app.get("/health", (_req, res) =>
+  res.json({
+    ok: true,
+    provider: config.llmProvider,
+    model: config.llmProvider === "anthropic" ? config.anthropicModel : config.llmModel,
+  }),
+);
 
 const apiRouters = config.enableCatalog ? [assessments, catalog] : [assessments];
 app.use("/api", apiLimiter, apiAuth, ...apiRouters);

@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { Assessment, computeScore } from "./controls";
 import { sanitizeField, safeUrl, detectInjection } from "./security/sanitize";
-import { validateAgentOutput } from "./security/schema";
+import { CleanAssessment, validateAgentOutput } from "./security/schema";
 import { getProvider } from "./llm";
 
 export interface AssessInput {
@@ -48,6 +48,34 @@ function extractJson(text: string): unknown {
   return JSON.parse(text.slice(s, e + 1));
 }
 
+// Appended to the user prompt (never the SYSTEM block, to keep the Anthropic path
+// unchanged) when the provider has no web search.
+const REDUCED_GROUNDING_NOTE =
+  `\n\nNOTE: web search is unavailable for this run — you cannot retrieve or verify any URL. ` +
+  `Leave every "citations" array empty. For any control where you lack first-hand, verifiable evidence you MUST return verdict "unknown"; ` +
+  `do not infer support from vendor reputation or typical patterns, and prefer "unknown" over guessing. ` +
+  `Do not set the governance recommendation higher than "Hold".`;
+
+// Deterministic enforcement of reduced grounding. A non-search model cannot have
+// retrieved evidence, and validateAgentOutput does not check citation provenance
+// (a well-formed but fabricated URL passes), so we enforce it here: drop every
+// citation, downgrade evidence-free positive verdicts to "unknown", and cap the
+// recommendation at "Hold". This mirrors the deterministic-clamp philosophy of
+// security/schema.ts rather than trusting the prompt instruction alone.
+function applyReducedGrounding(clean: CleanAssessment): CleanAssessment {
+  const capabilities = {} as CleanAssessment["capabilities"];
+  for (const key of Object.keys(clean.capabilities) as (keyof CleanAssessment["capabilities"])[]) {
+    const f = clean.capabilities[key];
+    const verdict = f.verdict === "supported" || f.verdict === "partial" ? "unknown" : f.verdict;
+    capabilities[key] = { ...f, verdict, citations: [] };
+  }
+  const recommendation =
+    clean.recommendation === "Approve" || clean.recommendation === "Approve with conditions"
+      ? "Hold"
+      : clean.recommendation;
+  return { ...clean, capabilities, recommendation };
+}
+
 /** Run a full assessment. Inputs are sanitized and fenced; output is validated. */
 export async function assessApp(rawInput: AssessInput): Promise<Assessment> {
   // Select the LLM provider (fails closed if its required config is missing).
@@ -73,11 +101,19 @@ export async function assessApp(rawInput: AssessInput): Promise<Assessment> {
     `app_name: ${name}\nvendor: ${vendor || "(unknown)"}\nofficial_url: ${url || "(none)"}\nrequesting_context: ${context || "(none)"}\n` +
     `<<END_UNTRUSTED_INPUT>>\nToday is ${today}. Research this application and return ONLY the JSON assessment.`;
 
+  // 3b) Providers without live web search can't produce citation-backed evidence,
+  // so steer them toward "unknown" (and enforce it deterministically in step 5b).
+  const ask2 = provider.supportsWebSearch ? ask : ask + REDUCED_GROUNDING_NOTE;
+
   // 4) Call the selected provider, then deterministically validate the output.
-  const text = await provider.complete({ system: SYSTEM, user: ask });
+  const text = await provider.complete({ system: SYSTEM, user: ask2 });
 
   // 5) Deterministically validate + bound the model output (LLM05/LLM10).
-  const clean = validateAgentOutput(extractJson(text));
+  let clean = validateAgentOutput(extractJson(text));
+
+  // 5b) Enforce reduced grounding for non-search providers (load-bearing — see note).
+  const grounding: "web_search" | "reduced" = provider.supportsWebSearch ? "web_search" : "reduced";
+  if (grounding === "reduced") clean = applyReducedGrounding(clean);
 
   // 6) Build the record. Server controls id/score/assessedAt — never the model.
   const record: Assessment = {
@@ -95,6 +131,7 @@ export async function assessApp(rawInput: AssessInput): Promise<Assessment> {
     risks: clean.risks,
     score: computeScore(clean.capabilities),
     assessedAt: new Date().toISOString(),
+    grounding,
   };
   return record;
 }
