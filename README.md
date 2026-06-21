@@ -131,6 +131,25 @@ saved search at `/webhooks/catalog/:source`, signing the body with `SNOUT_WEBHOO
 (`x-snout-signature: <hex hmac-sha256>`). Each record is normalized and queued for
 assessment automatically.
 
+**Discovery sensors (IdP logs & email)** — inventory apps + auth methods *without* the
+browser extension by forwarding your own telemetry to HMAC-signed endpoints (same
+`SNOUT_WEBHOOK_SECRET` / `x-snout-signature` scheme):
+
+- **IdP sign-in logs** → `POST /webhooks/idp/:source` where `:source` is `okta` | `entra` |
+  `google`. Point an Okta System Log export, a Microsoft Graph `auditLogs/signIns` job, or a
+  Google Workspace Reports pull at it (or route them via your SIEM). Snout maps each event to a
+  discovered app — auth method (SSO/OAuth), IdP, OAuth client + scopes — deduped by domain.
+  Events without a resolvable app domain are skipped and counted (add a `domain` field in your
+  forwarder to capture those).
+- **Signup / account emails** → `POST /webhooks/email` with `{ messages: [{ from, subject, date }] }`.
+  Snout records the *sender's* domain as a discovered app when the mail looks like a
+  signup/account notice; personal mailboxes and newsletters are ignored.
+
+All sensors (extension, IdP logs, email) **merge by domain** into one discovered record with a
+capped per-app history (`events`), surfaced in the dashboard's **Discovered** view. Discovery is
+push-only — Snout stores no IdP/mailbox credentials and makes no outbound calls to ingest. These
+routes require `ENABLE_CATALOG` (on by default).
+
 **Slack** — create a slash command `/snout`, set its Request URL to `/slack/snout`,
 and add `SLACK_SIGNING_SECRET`. The command acks instantly and posts the verdict back
 to the channel when the agent finishes (via Slack's `response_url`).

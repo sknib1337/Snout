@@ -1,7 +1,11 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { config } from "./config";
-import { Assessment, DiscoveredApp } from "./controls";
+import { Assessment, DiscoveredApp, DiscoveredEvent } from "./controls";
+
+// Keep at most this many history events per app so the JSON store can't grow
+// unbounded from a chatty sensor. Oldest events fall off first.
+const EVENT_CAP = 50;
 
 export type DiscoveredUpsert = {
   domain: string;
@@ -12,6 +16,7 @@ export type DiscoveredUpsert = {
   sources?: string[];
   firstSeen?: number;
   lastSeen?: number;
+  events?: DiscoveredEvent[];
 };
 
 export interface Store {
@@ -84,6 +89,7 @@ class JsonStore implements Store {
         sources: (incoming.sources || []).slice(0, 8),
         firstSeen: incoming.firstSeen || now,
         lastSeen: incoming.lastSeen || now,
+        events: (incoming.events || []).slice(-EVENT_CAP),
       };
       this.dCache = [fresh, ...list];
       await this.write(this.dFile, this.dCache);
@@ -106,6 +112,7 @@ class JsonStore implements Store {
       sources: Array.from(new Set([...(cur.sources || []), ...(incoming.sources || [])])).slice(0, 8),
       firstSeen: Math.min(cur.firstSeen, incoming.firstSeen || now),
       lastSeen: Math.max(cur.lastSeen, incoming.lastSeen || now),
+      events: [...(cur.events || []), ...(incoming.events || [])].slice(-EVENT_CAP),
     };
     list[i] = merged;
     this.dCache = list;

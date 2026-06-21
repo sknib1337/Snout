@@ -51,6 +51,11 @@ The model can't separate instructions from data, so we don't rely on it to.
 - Only the Anthropic path has live `web_search`. With a provider that lacks it, assessments run with **reduced grounding**: a deterministic post-validation guard drops all citations and downgrades any unproven `supported`/`partial` verdict to `unknown` (recommendation capped at `Hold`), because a non-search model cannot have retrieved evidence and the schema does not verify citation provenance. The grounding mode is recorded on each assessment.
 - Provider error responses are never returned to the client or used as the thrown message (a third-party gateway could echo auth headers/keys); the upstream detail is logged server-side only. API keys, bearer tokens, and base URLs are never logged or exposed via `/health` or `/api/config`.
 
+### Discovery ingestion (webhooks)
+- Every discovery/catalog webhook (`/webhooks/catalog/:source`, `/webhooks/idp/:source`, `/webhooks/email`) is **HMAC-SHA256 verified** against `SNOUT_WEBHOOK_SECRET` over the raw body with a constant-time compare; routes **fail closed** (`501`) when the secret is unset and reject a bad/absent `x-snout-signature` (`401`). They share the rate-limited webhook bucket and the discovered routes are gated by `ENABLE_CATALOG`.
+- Discovery is **push-only**: Snout ingests logs/emails your own pipeline forwards. It stores **no IdP or mailbox credentials** and makes **no outbound calls** to ingest — so there is no new SSRF surface and no third-party secret to leak.
+- All ingested fields are length-clamped (`sanitizeField`) and the app key is validated against a strict domain regex; events without a resolvable domain are skipped (and counted), not stored. Per-app history is capped so a chatty sensor can't grow the store unbounded.
+
 ### Security misconfiguration (API8)
 - `helmet` security headers on the API; `x-powered-by` disabled; strict CORS allowlist (`WEB_ORIGIN`).
 - A Content-Security-Policy plus `X-Frame-Options`, `nosniff`, `Referrer-Policy`, and `Permissions-Policy` on the web tier (`web/nginx.conf`).

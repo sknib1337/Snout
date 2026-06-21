@@ -63,7 +63,17 @@ export function readiness(score: number): "Controls Ready" | "Partial" | "Not Re
   return "Not Ready";
 }
 
-// Apps discovered in the wild (e.g., by the browser extension) before assessment.
+// One append-only discovery observation, so the inventory shows *how* and *when*
+// each app/auth signal was seen (which sensor, what it observed). Capped per app.
+export interface DiscoveredEvent {
+  ts: number;
+  source: string; // sensor: "extension" | "okta-log" | "entra-log" | "google-log" | "email" | ...
+  kind: string;   // "sso" | "oauth" | "signin" | "login" | "signup" | ...
+  detail?: string;
+}
+
+// Apps discovered in the wild (browser extension, IdP sign-in logs, signup emails)
+// before assessment. Keyed by domain; sensors are deduped/merged into one record.
 export interface DiscoveredApp {
   domain: string;
   name: string;
@@ -73,6 +83,7 @@ export interface DiscoveredApp {
   sources: string[];
   firstSeen: number;
   lastSeen: number;
+  events?: DiscoveredEvent[]; // discovery history (optional; older records have none)
   assessmentId?: string;
 }
 

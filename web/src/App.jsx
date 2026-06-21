@@ -762,9 +762,12 @@ function Discovered({ apps, busyDomain, onAssess, onOpen, onDelete }) {
       <div className="panel p-12 text-center">
         <div className="mx-auto grid place-items-center" style={{ width: 52, height: 52, borderRadius: 10, background: "rgba(173,198,255,0.08)" }}><RadarIcon className="w-6 h-6 txt-primary" /></div>
         <div className="disp" style={{ fontSize: 18, fontWeight: 600, marginTop: 14, color: C.on }}>No discovered apps yet</div>
-        <p className="txt-var mx-auto" style={{ fontSize: 13, marginTop: 6, maxWidth: 460, lineHeight: 1.6 }}>
-          Install the Snout browser extension, set your corporate IdP in its options, then click <b>Sync</b>.
-          Apps you authenticate to — and how (SSO, social, local password, OAuth grants) — show up here for triage and one-click assessment.
+        <p className="txt-var mx-auto" style={{ fontSize: 13, marginTop: 6, maxWidth: 480, lineHeight: 1.6 }}>
+          Feed any sensor — the Snout browser extension (<b>Sync</b>), your IdP sign-in logs
+          (Okta / Entra / Google → <span className="mono">/webhooks/idp/:source</span>), or forwarded
+          signup emails (<span className="mono">/webhooks/email</span>). Apps, how you authenticate
+          (SSO, social, local password, OAuth grants), and when they were seen show up here for triage
+          and one-click assessment.
         </p>
       </div>
     );
@@ -800,6 +803,13 @@ function Discovered({ apps, busyDomain, onAssess, onOpen, onDelete }) {
                   {grant?.scopes?.length > 0 && (
                     <div className="mono txt-dim" style={{ fontSize: 10.5, marginTop: 5, lineHeight: 1.5, wordBreak: "break-word" }}>↳ {grant.idp} · scopes: {grant.scopes.join(" ")}</div>
                   )}
+                  <div className="flex flex-wrap items-center gap-1.5 mono txt-dim" style={{ fontSize: 10, marginTop: 5 }}>
+                    {(a.sources || []).map((s) => <span key={s} className="chip" style={{ padding: "0.05rem 0.4rem", fontSize: 9.5 }}>{s}</span>)}
+                    {a.events?.length > 0 && (() => {
+                      const last = [...a.events].sort((x, y) => y.ts - x.ts)[0];
+                      return <span title={`${a.events.length} event(s)`}>· last: {last.source} {last.kind} · {new Date(last.ts || a.lastSeen).toLocaleDateString()}</span>;
+                    })()}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {a.assessment

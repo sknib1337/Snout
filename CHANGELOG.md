@@ -7,6 +7,14 @@ All notable changes to Snout are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **Multi-sensor discovery** (`server/src/discovery.ts`). Inventory apps + auth methods
+  without the browser extension by forwarding telemetry to two new HMAC-signed webhooks:
+  `POST /webhooks/idp/:source` (`okta` | `entra` | `google` sign-in/audit logs) and
+  `POST /webhooks/email` (forwarded signup/account email metadata). All sensors — extension,
+  IdP logs, email — merge by domain into one discovered record, now with a **capped per-app
+  history** (`events[]`) shown in the Discovered view. Push-only: no IdP/mailbox credentials
+  are stored and no outbound calls are made to ingest. Events without a resolvable app domain
+  are skipped and counted. Gated by `ENABLE_CATALOG`; reuses `SNOUT_WEBHOOK_SECRET`.
 - **Configurable LLM provider** (`server/src/llm/`). `LLM_PROVIDER=anthropic` (default)
   keeps the Anthropic Messages API with `web_search`; `ANTHROPIC_BASE_URL` lets it run
   through a proxy / API gateway / internal Anthropic-compatible endpoint. `LLM_PROVIDER=openai`
