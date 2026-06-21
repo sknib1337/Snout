@@ -12,10 +12,10 @@
     "build:demo": "VITE_DEMO=true vite build"
   },
   "dependencies": {
-    "lucide-react": "^0.408.0",
+    "lucide-react": "^1.21.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "recharts": "^2.12.7",
+    "recharts": "^3.8.1",
     "vite-plugin-singlefile": "^2.3.3"
   },
   "devDependencies": {
