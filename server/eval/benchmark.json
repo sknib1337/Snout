@@ -12,5 +12,17 @@
   { "vendor": "Asana", "domain": "asana.com",
     "expected": { "sso": "supported", "ulm": "supported", "entitlements": "partial", "riskSignals": "unknown", "logout": "partial", "tokenRevocation": "partial" } },
   { "vendor": "Datadog", "domain": "datadoghq.com",
-    "expected": { "sso": "supported", "ulm": "supported", "entitlements": "partial", "riskSignals": "unknown", "logout": "partial", "tokenRevocation": "partial" } }
+    "expected": { "sso": "supported", "ulm": "supported", "entitlements": "partial", "riskSignals": "unknown", "logout": "partial", "tokenRevocation": "partial" } },
+  { "vendor": "Atlassian", "domain": "atlassian.com",
+    "expected": { "sso": "supported", "ulm": "supported", "entitlements": "partial", "riskSignals": "unknown", "logout": "partial", "tokenRevocation": "partial" } },
+  { "vendor": "Salesforce", "domain": "salesforce.com",
+    "expected": { "sso": "supported", "ulm": "supported", "entitlements": "partial", "riskSignals": "unknown", "logout": "partial", "tokenRevocation": "supported" } },
+  { "vendor": "Dropbox", "domain": "dropbox.com",
+    "expected": { "sso": "supported", "ulm": "supported", "entitlements": "partial", "riskSignals": "unknown", "logout": "partial", "tokenRevocation": "partial" } },
+  { "vendor": "HubSpot", "domain": "hubspot.com",
+    "expected": { "sso": "supported", "ulm": "supported", "entitlements": "partial", "riskSignals": "unknown", "logout": "unknown", "tokenRevocation": "partial" } },
+  { "vendor": "Calendly", "domain": "calendly.com",
+    "expected": { "sso": "supported", "ulm": "partial", "entitlements": "unknown", "riskSignals": "unknown", "logout": "unknown", "tokenRevocation": "partial" } },
+  { "vendor": "Airtable", "domain": "airtable.com",
+    "expected": { "sso": "supported", "ulm": "supported", "entitlements": "partial", "riskSignals": "unknown", "logout": "unknown", "tokenRevocation": "partial" } }
 ]

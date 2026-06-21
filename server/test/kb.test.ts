@@ -48,8 +48,8 @@ describe("KB load + merge", () => {
 describe("eval harness (KB-only, deterministic)", () => {
   it("measures accuracy against the labeled benchmark", async () => {
     const m = await evalmod.evaluate(evalmod.loadBenchmark(), evalmod.kbPredict);
-    expect(m.total).toBe(42);
-    expect(m.accuracy).toBeGreaterThanOrEqual(0.6); // seeded vendors match; uncovered reveal gaps
+    expect(m.total).toBe(78);
+    expect(m.accuracy).toBeGreaterThanOrEqual(0.6); // covered vendors match; uncovered + drift reveal gaps
     expect(m.coverage).toBeGreaterThan(0);
   });
 });

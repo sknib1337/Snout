@@ -1,0 +1,13 @@
+{
+  "vendor": "Dropbox",
+  "domain": "dropbox.com",
+  "updatedAt": "2026-06-21",
+  "controls": {
+    "sso": { "verdict": "supported", "confidence": 0.8, "standards": ["SAML 2.0"], "summary": "SAML SSO on Business/Enterprise tiers.", "citations": [{ "title": "Dropbox Help", "url": "https://help.dropbox.com" }, { "title": "The SSO Wall of Shame", "url": "https://sso.tax/" }], "source": "seed" },
+    "ulm": { "verdict": "supported", "confidence": 0.7, "standards": ["SCIM 2.0"], "summary": "SCIM provisioning supported for teams.", "citations": [{ "title": "Dropbox Help", "url": "https://help.dropbox.com" }], "source": "seed" },
+    "entitlements": { "verdict": "partial", "confidence": 0.45, "standards": ["SCIM groups"], "summary": "Group sync via SCIM; folder permissions in-product.", "citations": [{ "title": "Dropbox Help", "url": "https://help.dropbox.com" }], "source": "seed" },
+    "riskSignals": { "verdict": "unknown", "confidence": 0.3, "standards": [], "summary": "No documented CAEP/SSF support.", "citations": [], "source": "seed" },
+    "logout": { "verdict": "partial", "confidence": 0.4, "standards": ["Session management"], "summary": "Admin remote sign-out; SLO not documented.", "citations": [{ "title": "Dropbox Help", "url": "https://help.dropbox.com" }], "source": "seed" },
+    "tokenRevocation": { "verdict": "partial", "confidence": 0.4, "standards": ["OAuth 2.0"], "summary": "OAuth app token revocation; linked-app management.", "citations": [{ "title": "Dropbox Help", "url": "https://help.dropbox.com" }], "source": "seed" }
+  }
+}
