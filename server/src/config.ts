@@ -64,7 +64,7 @@ export function assertStartup() {
     if (!config.anthropicApiKey) {
       console.warn("[snout] ANTHROPIC_API_KEY is not set — /api/assess will fail until you add it.");
     }
-  } else if (provider === "openai" || provider === "openai-compatible") {
+  } else if (provider === "openai") {
     const missing = ([
       ["LLM_BASE_URL", config.llmBaseUrl],
       ["LLM_API_KEY", config.llmApiKey],

@@ -16,7 +16,7 @@ export function getProvider(): LLMProvider {
     if (!config.anthropicApiKey) throw new Error("ANTHROPIC_API_KEY is not configured on the server");
     return new AnthropicProvider();
   }
-  if (name === "openai" || name === "openai-compatible") {
+  if (name === "openai") {
     if (!config.llmBaseUrl) throw new Error("LLM_BASE_URL is not configured");
     if (!config.llmApiKey) throw new Error("LLM_API_KEY is not configured");
     if (!config.llmModel) throw new Error("LLM_MODEL is not configured");
