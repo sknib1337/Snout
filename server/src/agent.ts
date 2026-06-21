@@ -1,9 +1,13 @@
 import { randomUUID } from "crypto";
-import { Assessment, ControlKey, ControlFact, ControlFinding, computeScore } from "./controls";
+import { Assessment, ControlKey, ControlFact, ControlFinding, AssessmentChange, Verdict, computeScore } from "./controls";
 import { sanitizeField, safeUrl, detectInjection } from "./security/sanitize";
 import { CleanAssessment, validateAgentOutput } from "./security/schema";
 import { getProvider } from "./llm";
 import { kbKeyFor, getVerifiedFacts, getFacts, recordProposals } from "./kb";
+import { store } from "./store";
+
+// Verdict ranking for regression detection (higher = stronger support).
+const VERDICT_RANK: Record<Verdict, number> = { supported: 3, partial: 2, unknown: 1, unsupported: 0 };
 
 // Render human-verified KB facts as a TRUSTED, structured priors block. Only
 // verdict/standards/safe citation URLs and a sanitized summary are included —
@@ -168,6 +172,30 @@ export async function assessApp(rawInput: AssessInput): Promise<Assessment> {
     try { await recordProposals(kbKey, clean.vendor || kbVendor || vendor, mergedCaps); } catch { /* best-effort */ }
   }
 
+  // 5d) Change detection (EPIC-OPERATE): diff against the previous assessment of
+  // this app; raise an alert on any control regression.
+  const changes: AssessmentChange[] = [];
+  try {
+    const prev = (await store.list()).find((x) => x.app.toLowerCase() === (clean.app || name).toLowerCase());
+    if (prev) {
+      for (const key of Object.keys(mergedCaps) as ControlKey[]) {
+        const from = prev.capabilities?.[key]?.verdict;
+        const to = mergedCaps[key].verdict;
+        if (from && from !== to) changes.push({ control: key, from, to });
+      }
+      for (const c of changes) {
+        if (VERDICT_RANK[c.to] < VERDICT_RANK[c.from]) {
+          await store.addAlert({
+            id: randomUUID(), kind: "change", severity: "medium",
+            vendor: clean.vendor || vendor || name, domain: kbKey,
+            title: `${clean.app || name}: ${c.control} regressed ${c.from} → ${c.to}`,
+            ts: Date.now(),
+          });
+        }
+      }
+    }
+  } catch { /* best-effort: never fail an assessment over monitoring */ }
+
   // 6) Build the record. Server controls id/score/assessedAt — never the model.
   const record: Assessment = {
     id: randomUUID(),
@@ -186,6 +214,7 @@ export async function assessApp(rawInput: AssessInput): Promise<Assessment> {
     assessedAt: new Date().toISOString(),
     grounding,
     kbKey,
+    changes: changes.length ? changes : undefined,
   };
   return record;
 }

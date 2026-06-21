@@ -54,6 +54,37 @@ export interface KbVendor {
   controls: Partial<Record<ControlKey, ControlFact>>;
 }
 
+// --- Continuous monitoring (EPIC-OPERATE) ---------------------------------
+// An alert raised by a sensor: a breach/CVE feed item, or a detected control
+// regression on re-assessment.
+export interface Alert {
+  id: string;
+  kind: "breach" | "cve" | "change";
+  severity: "high" | "medium" | "low";
+  vendor: string;
+  domain?: string;
+  title: string;
+  detail?: string;
+  url?: string;
+  ts: number;
+}
+
+// One control verdict that changed between consecutive assessments of an app.
+export interface AssessmentChange { control: ControlKey; from: Verdict; to: Verdict; }
+
+// --- Audit log (EPIC-ENTERPRISE) ------------------------------------------
+// A record of every mutating API call: who (role), which tenant, what, outcome.
+export interface AuditEntry {
+  id: string;
+  ts: number;
+  requestId?: string;
+  role: string;
+  tenant: string;
+  method: string;
+  path: string;
+  status?: number;
+}
+
 export interface Assessment {
   id: string;
   app: string;
@@ -81,6 +112,8 @@ export interface Assessment {
   grounding?: "web_search" | "reduced";
   // Resolved knowledge-base key (domain or vendor slug) for verify/override reuse.
   kbKey?: string;
+  // Control verdicts that changed vs the previous assessment of this app (EPIC-OPERATE).
+  changes?: AssessmentChange[];
 }
 
 export function computeScore(capabilities: Partial<Record<ControlKey, ControlFinding>>): number {

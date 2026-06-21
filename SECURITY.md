@@ -33,9 +33,10 @@ The model can't separate instructions from data, so we don't rely on it to.
 - Citation links are re-validated client-side and rendered `rel="noopener noreferrer nofollow"`.
 - Text sent to Slack/Teams runs through `forChat()` — escapes `& < >`, strips `@channel/@here/@everyone` — preventing link and broadcast-mention injection.
 
-### Authentication (API2) — fail closed
+### Authentication & RBAC (API2/API1) — fail closed
 - `/api/*` requires `Authorization: Bearer <API_TOKEN>` when a token is set; comparison is constant-time.
 - In **production the server refuses to start** without `API_TOKEN` unless `ALLOW_ANON=true` is explicitly set (for deployments behind an authenticating gateway). No anonymous access by default.
+- **Roles (EPIC-ENTERPRISE):** the admin `API_TOKEN` can mutate; an optional `API_VIEWER_TOKEN` is read-only — a `writeGuard` rejects any non-GET from a viewer (`403`), and the audit log is admin-only. Every mutating call is recorded to a tamper-evident-by-append **audit log** (who/role/tenant/path/outcome). `TENANT_ID` tags entries; true per-tenant data isolation is a Postgres-Store concern (the JSON store is single-tenant).
 
 ### Resource consumption & sensitive flows (API4/API6, LLM10)
 - Per-client rate limits (keyed by token hash or proxy-aware IP): a general `/api` bucket and a **stricter `/assess` bucket**, plus a separate webhook bucket.

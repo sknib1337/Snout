@@ -9,7 +9,7 @@ import {
   Layers, ScanSearch, ChevronRight, Sparkles, ListChecks, ShieldAlert,
   LayoutDashboard, Boxes, Clock, TerminalSquare, Radar as RadarIcon, Trash2,
 } from "lucide-react";
-import { assess as apiAssess, listAssessments, listDiscovered, assessDiscovered, deleteDiscovered, getFeatures, verifyControl } from "./api";
+import { assess as apiAssess, listAssessments, listDiscovered, assessDiscovered, deleteDiscovered, getFeatures, verifyControl, listAlerts } from "./api";
 
 /* ============================================================ *
  * Snout — Critical Enterprise SaaS Controls console
@@ -829,6 +829,11 @@ function Discovered({ apps, busyDomain, onAssess, onOpen, onDelete }) {
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                     <span className="pill" style={{ background: "transparent", color: p.color, border: `1px solid ${p.color}66` }}>{p.label}</span>
+                    {a.posture?.findings?.length > 0 && (() => {
+                      const rs = a.posture.riskScore || 0;
+                      const col = rs >= 40 ? C.error : rs >= 20 ? C.tertiary : C.secondary;
+                      return <span className="pill" title={a.posture.findings.map((x) => x.title).join(" · ")} style={{ background: `${col}1a`, color: col, border: `1px solid ${col}55` }}>⚠ risk {rs} · {a.posture.findings.length}</span>;
+                    })()}
                     {METHOD_BADGES.filter((m) => a.methods?.[m.key]).map((m) => <span key={m.key} className={`pill ${m.cls}`}>{m.label}</span>)}
                   </div>
                   {grant?.scopes?.length > 0 && (
@@ -906,9 +911,11 @@ export default function App() {
   const [discovered, setDiscovered] = useState([]);
   const [busyDomain, setBusyDomain] = useState(null);
   const [features, setFeatures] = useState({ catalog: true });
+  const [alerts, setAlerts] = useState([]);
 
   const refreshDiscovered = useCallback(async () => {
     try { setDiscovered(await listDiscovered()); } catch { /* offline */ }
+    try { setAlerts(await listAlerts()); } catch { /* offline */ }
   }, []);
 
   useEffect(() => {
@@ -1026,6 +1033,15 @@ export default function App() {
 
           <div className="p-4 sm:p-6">
             <div className="max-w-6xl mx-auto">
+              {alerts.length > 0 && (
+                <div className="panel p-3 mb-4 flex items-center gap-3" style={{ borderColor: `${C.error}40`, background: `${C.error}0d` }}>
+                  <ShieldAlert className="w-4 h-4 shrink-0" style={{ color: C.error }} />
+                  <div className="min-w-0 flex-1">
+                    <span className="disp" style={{ fontSize: 13, fontWeight: 600, color: C.on }}>{alerts.length} monitoring alert{alerts.length > 1 ? "s" : ""}</span>
+                    <span className="txt-var" style={{ fontSize: 12.5, marginLeft: 8 }}>{alerts[0].title}</span>
+                  </div>
+                </div>
+              )}
               {!loaded ? (
                 <div className="py-24 grid place-items-center txt-dim"><Loader2 className="w-6 h-6 spin" /></div>
               ) : view === "command" ? (

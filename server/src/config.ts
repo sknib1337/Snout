@@ -33,6 +33,12 @@ export const config = {
   // Auth. Required in production unless ALLOW_ANON=true (discouraged).
   apiToken: process.env.API_TOKEN || "",
   allowAnon: process.env.ALLOW_ANON === "true",
+  // RBAC (EPIC-ENTERPRISE): an optional read-only token. Holders can GET but not
+  // mutate. The admin API_TOKEN can do everything.
+  viewerToken: process.env.API_VIEWER_TOKEN || "",
+  // Tenant tag recorded on the audit log (single-tenant default). True per-tenant
+  // data isolation requires the Postgres Store — see SECURITY.md / README.
+  tenantId: process.env.TENANT_ID || "default",
 
   // Trust proxy setting so client IPs (for rate limiting) are accurate behind a proxy.
   trustProxy: process.env.TRUST_PROXY || "loopback",

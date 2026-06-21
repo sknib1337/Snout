@@ -1,9 +1,11 @@
 import { Router, Request, Response } from "express";
+import { randomUUID } from "crypto";
 import { config } from "../config";
 import { hmacHex, safeEqual } from "../lib/hmac";
 import { assessApp, AssessInput } from "../agent";
 import { store } from "../store";
 import { idpAdapters, emailToUpsert, sanitizeUpsert } from "../discovery";
+import { sanitizeField, safeUrl } from "../security/sanitize";
 
 export const webhooks = Router();
 
@@ -76,6 +78,30 @@ webhooks.post("/idp/:source", async (req, res, next) => {
       accepted++;
     }
     res.status(202).json({ accepted, skipped });
+  } catch (e) { next(e); }
+});
+
+// SaaS supply-chain breach / CVE feed -> monitoring alerts (EPIC-OPERATE).
+webhooks.post("/breach", async (req, res, next) => {
+  if (!verifiedRaw(req, res)) return;
+  let accepted = 0;
+  try {
+    for (const r of recordsOf(req.body)) {
+      const vendor = sanitizeField(r?.vendor || r?.name || r?.app, 120);
+      const title = sanitizeField(r?.title || r?.summary, 200);
+      if (!vendor || !title) continue;
+      const severity = (["high", "medium", "low"].includes(r?.severity) ? r.severity : "medium") as "high" | "medium" | "low";
+      const domain = sanitizeField(r?.domain, 253).toLowerCase();
+      await store.addAlert({
+        id: randomUUID(),
+        kind: /cve/i.test(String(r?.kind || "")) ? "cve" : "breach",
+        severity, vendor, domain: domain || undefined,
+        title, detail: sanitizeField(r?.detail, 400) || undefined,
+        url: safeUrl(r?.url) || undefined, ts: Date.now(),
+      });
+      accepted++;
+    }
+    res.status(202).json({ accepted });
   } catch (e) { next(e); }
 });
 

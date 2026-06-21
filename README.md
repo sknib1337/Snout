@@ -116,11 +116,16 @@ docker compose up --build            # web on :8080, server on :8787
 | `POST` | `/api/catalog` | bulk-ingest discovered apps `{ apps: [...] }` (used by the extension's Sync) |
 | `POST` | `/api/catalog/:domain/assess` | assess a discovered app and link the result |
 | `DELETE` | `/api/catalog/:domain` | remove a discovered app |
+| `GET`  | `/api/catalog/export` | discovered apps + posture findings/risk score (SIEM/BI export) |
 | `GET`  | `/api/kb/:key` | merged knowledge-base facts (repo file + overrides) for a vendor |
 | `POST` | `/api/kb/:key/:control` | human verify/override one control fact (`source: human`) |
+| `GET`  | `/api/alerts` | monitoring alerts (breach/CVE feed + control regressions) |
+| `DELETE` | `/api/alerts/:id` | dismiss an alert |
+| `GET`  | `/api/audit` | audit log of mutating calls (**admin only**) |
 | `POST` | `/webhooks/catalog/:source` | `servicenow` \| `okta` \| `netsuite` — HMAC signed |
 | `POST` | `/webhooks/idp/:source` | `okta` \| `entra` \| `google` sign-in/audit logs → discovered (HMAC) |
 | `POST` | `/webhooks/email` | forwarded signup/account email metadata → discovered (HMAC) |
+| `POST` | `/webhooks/breach` | SaaS breach/CVE feed → monitoring alerts (HMAC) |
 | `POST` | `/slack/snout` | `/snout <app>` slash command |
 | `POST` | `/teams/snout` | Teams outgoing webhook / bot |
 
@@ -209,10 +214,12 @@ SSRF private-host block that applies to untrusted user/citation URLs. See **[SEC
 
 ## Persistence
 
-Default is a single JSON file under `DATA_DIR` — zero setup, fine for small teams. For
-production, implement the `Store` interface in `server/src/store.ts` against Postgres
-(one `assessments` table, JSONB `data`, unique `lower(app)` index for upsert) and swap
-the export; nothing else changes.
+Default is JSON files under `DATA_DIR` (`assessments`, `discovered`, `kb`, `alerts`, `audit`) —
+zero setup, fine for small teams. For production, implement the `Store` interface in
+`server/src/store.ts` against Postgres (a table per collection, JSONB `data`, unique
+`lower(app)` / `domain` indexes for upsert) and swap the export; nothing else changes. The
+`Store` seam is also where **per-tenant data isolation** belongs for multi-tenant deployments
+(scope every query by tenant) — the JSON store is single-tenant and tags the audit log only.
 
 ## Demo
 
@@ -264,10 +271,24 @@ npm run eval -- --live  # optional: run the real agent instead of KB-only (uses 
 Current measured numbers live in [kb/EVAL.md](./kb/EVAL.md). The scoring itself stays the
 transparent mean documented in [METHODOLOGY.md](./METHODOLOGY.md).
 
+## Posture, monitoring & governance
+
+- **Auth-posture findings** — every discovered app is scored for identity risk (no corporate
+  SSO, local-password login, consumer IdP, broad/long-lived OAuth scopes) with a risk score and
+  badges in the Discovered view; `GET /api/catalog/export` emits the same as a flat feed for
+  SIEM/BI. These are *findings*, not inline enforcement (see **Scope**).
+- **Continuous monitoring** — forward a SaaS breach/CVE feed to `POST /webhooks/breach`, and
+  re-assessments raise an **alert on any control regression** (e.g. `sso` drops from
+  `supported`). Alerts surface in the dashboard and at `GET /api/alerts`.
+- **Roles & audit** — the admin `API_TOKEN` can do everything; an optional read-only
+  `API_VIEWER_TOKEN` can `GET` but not mutate. Every mutating call is written to an **audit log**
+  (`GET /api/audit`, admin only) tagged with role and tenant (`TENANT_ID`). True per-tenant data
+  isolation is a Postgres-store concern (below).
+
 ## Tests
 
 ```bash
-npm test            # server: scoring + HMAC + discovery + KB/eval (vitest)
+npm test            # server: scoring + HMAC + discovery + KB/eval + posture + RBAC (vitest)
 ```
 
 ## Roadmap ideas

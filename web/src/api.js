@@ -76,6 +76,17 @@ export async function assessDiscovered(domain) {
   return r.json();
 }
 
+// --- Monitoring alerts (breach/CVE feed + control regressions) ---
+
+export async function listAlerts() {
+  if (DEMO) return [];
+  try {
+    const r = await fetch(`${BASE}/alerts`, { headers: headers(false) });
+    if (!r.ok) return [];
+    return r.json();
+  } catch { return []; }
+}
+
 // --- Knowledge base (verify / override a control fact) ---
 
 export async function verifyControl(key, control, body) {

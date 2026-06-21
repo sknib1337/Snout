@@ -1,7 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { config } from "./config";
-import { Assessment, DiscoveredApp, DiscoveredEvent, KbVendor, ControlFact, ControlKey } from "./controls";
+import { Assessment, DiscoveredApp, DiscoveredEvent, KbVendor, ControlFact, ControlKey, Alert, AuditEntry } from "./controls";
 
 // Keep at most this many history events per app so the JSON store can't grow
 // unbounded from a chatty sensor. Oldest events fall off first.
@@ -35,6 +35,13 @@ export interface Store {
   listKbOverrides(): Promise<KbVendor[]>;
   getKbOverride(domain: string): Promise<KbVendor | undefined>;
   upsertKbControl(domain: string, vendor: string, control: ControlKey, fact: ControlFact): Promise<KbVendor>;
+  // continuous-monitoring alerts (breach/CVE feed + detected control regressions)
+  listAlerts(): Promise<Alert[]>;
+  addAlert(alert: Alert): Promise<Alert>;
+  removeAlert(id: string): Promise<void>;
+  // audit log of mutating API calls (who/what/outcome)
+  listAudit(): Promise<AuditEntry[]>;
+  addAudit(entry: AuditEntry): Promise<void>;
 }
 
 /**
@@ -46,9 +53,13 @@ class JsonStore implements Store {
   private aFile = path.join(config.dataDir, "assessments.json");
   private dFile = path.join(config.dataDir, "discovered.json");
   private kFile = path.join(config.dataDir, "kb.json");
+  private alFile = path.join(config.dataDir, "alerts.json");
+  private auFile = path.join(config.dataDir, "audit.json");
   private aCache: Assessment[] | null = null;
   private dCache: DiscoveredApp[] | null = null;
   private kCache: KbVendor[] | null = null;
+  private alCache: Alert[] | null = null;
+  private auCache: AuditEntry[] | null = null;
 
   private async read<T>(file: string): Promise<T[]> {
     try { return JSON.parse(await fs.readFile(file, "utf8")); } catch { return []; }
@@ -149,6 +160,27 @@ class JsonStore implements Store {
     this.kCache = list;
     await this.write(this.kFile, list);
     return v;
+  }
+
+  private async loadAl() { return (this.alCache ??= await this.read<Alert>(this.alFile)); }
+  async listAlerts() { return [...(await this.loadAl())].sort((a, b) => b.ts - a.ts); }
+  async addAlert(alert: Alert) {
+    const list = await this.loadAl();
+    this.alCache = [alert, ...list].slice(0, 500); // bound the store
+    await this.write(this.alFile, this.alCache);
+    return alert;
+  }
+  async removeAlert(id: string) {
+    this.alCache = (await this.loadAl()).filter((a) => a.id !== id);
+    await this.write(this.alFile, this.alCache);
+  }
+
+  private async loadAu() { return (this.auCache ??= await this.read<AuditEntry>(this.auFile)); }
+  async listAudit() { return [...(await this.loadAu())].sort((a, b) => b.ts - a.ts); }
+  async addAudit(entry: AuditEntry) {
+    const list = await this.loadAu();
+    this.auCache = [entry, ...list].slice(0, 2000); // bound the store
+    await this.write(this.auFile, this.auCache);
   }
 }
 

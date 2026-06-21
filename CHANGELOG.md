@@ -7,6 +7,17 @@ All notable changes to Snout are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **Auth-posture findings** (`server/src/posture.ts`). Each discovered app is scored for
+  identity risk (no corporate SSO, local-password login, consumer IdP, broad/long-lived OAuth
+  scopes) with a risk score + badges in the Discovered view; `GET /api/catalog/export` emits a
+  flat posture feed for SIEM/BI. Findings only — not inline enforcement.
+- **Continuous monitoring** (`server/src/routes/alerts.ts`). A `POST /webhooks/breach` HMAC feed
+  ingests SaaS breach/CVE items, and re-assessments raise an **alert on any control regression**;
+  alerts surface in the dashboard and at `GET /api/alerts`.
+- **RBAC + audit log + tenant tag** (`server/src/security/auth.ts`). The admin `API_TOKEN` can
+  mutate; an optional read-only `API_VIEWER_TOKEN` is GET-only (`writeGuard`). Every mutating call
+  is recorded to an append-only audit log (`GET /api/audit`, admin only) tagged with role and
+  `TENANT_ID`. Per-tenant data isolation remains a Postgres-Store concern.
 - **Open IPSIE-control knowledge base + measured accuracy** (`server/src/kb.ts`, `kb/`,
   `server/eval/`). Per-vendor control facts live in community-contributable `kb/<domain>.json`
   files (validated by `npm run kb:validate`) plus runtime human verify/override via
