@@ -16,6 +16,8 @@ All notable changes to Snout are documented here. The format is based on
   `/api/config` now report the effective provider/model.
 
 ### Changed
+- Upgraded core dependencies to current majors: **zod 3 → 4** (server; `z.record` now
+  takes an explicit key schema) and **React 18 → 19** (web). No behavior changes.
 - Rebranded the product from "Trust Agent" to **Snout**. Renamed packages, the
   extension, the `/snout` Slack/Teams command, the `SNOUT_WEBHOOK_SECRET` env var, and
   the extension `snoutUrl`/`snoutToken` settings. No functional changes.
