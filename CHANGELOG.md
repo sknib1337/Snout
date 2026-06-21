@@ -7,6 +7,12 @@ All notable changes to Snout are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **Assessment-correctness passes** (`server/src/verify.ts`, `server/src/citations.ts`), both
+  off by default. `VERIFY_FINDINGS=true` runs an adversarial **refutation pass** that
+  deterministically demotes verdicts it can't defend to `unknown` (never demoting human-verified
+  KB facts, never upgrading). `CHECK_CITATIONS=true` fetches cited pages — SSRF-guarded
+  (`safeUrl()` + `redirect: manual` + timeout + size cap) — and drops citations that don't
+  support the control (unfetchable pages are kept).
 - **Auth-posture findings** (`server/src/posture.ts`). Each discovered app is scored for
   identity risk (no corporate SSO, local-password login, consumer IdP, broad/long-lived OAuth
   scopes) with a risk score + badges in the Discovered view; `GET /api/catalog/export` emits a

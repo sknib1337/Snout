@@ -5,6 +5,9 @@ import { CleanAssessment, validateAgentOutput } from "./security/schema";
 import { getProvider } from "./llm";
 import { kbKeyFor, getVerifiedFacts, getFacts, recordProposals } from "./kb";
 import { store } from "./store";
+import { config } from "./config";
+import { VERIFY_SYSTEM, buildRefutationPrompt, parseRefutations, applyRefutations } from "./verify";
+import { groundFindings } from "./citations";
 
 // Verdict ranking for regression detection (higher = stronger support).
 const VERDICT_RANK: Record<Verdict, number> = { supported: 3, partial: 2, unknown: 1, unsupported: 0 };
@@ -168,6 +171,25 @@ export async function assessApp(rawInput: AssessInput): Promise<Assessment> {
       };
     }
   }
+  // 5c-i) Adversarial verification (depth D3, gated): a refutation pass demotes
+  // unproven verdicts; KB-verified facts are never demoted. Deterministic apply.
+  let recommendation = clean.recommendation;
+  if (config.verifyFindings && grounding === "web_search") {
+    try {
+      const vtext = await provider.complete({ system: VERIFY_SYSTEM, user: buildRefutationPrompt(clean.app || name, mergedCaps) });
+      const applied = applyRefutations(mergedCaps, recommendation, parseRefutations(vtext));
+      Object.assign(mergedCaps, applied.caps);
+      recommendation = applied.recommendation;
+    } catch { /* best-effort: verification never breaks an assessment */ }
+  }
+
+  // 5c-ii) Citation grounding (depth D3, gated): drop citations whose page doesn't
+  // support the claim. SSRF-guarded fetch; KB-verified facts untouched.
+  if (config.checkCitations && grounding === "web_search") {
+    try { Object.assign(mergedCaps, await groundFindings(mergedCaps, clean.vendor || vendor, { timeoutMs: config.citationTimeoutMs })); } catch { /* best-effort */ }
+  }
+
+  // 5c-iii) Record the (now verified) agent findings as unverified KB proposals.
   if (grounding === "web_search") {
     try { await recordProposals(kbKey, clean.vendor || kbVendor || vendor, mergedCaps); } catch { /* best-effort */ }
   }
@@ -205,7 +227,7 @@ export async function assessApp(rawInput: AssessInput): Promise<Assessment> {
     summary: clean.summary,
     capabilities: mergedCaps,
     extended: clean.extended,
-    recommendation: clean.recommendation,
+    recommendation,
     recommendationRationale: clean.recommendationRationale,
     conditions: clean.conditions,
     ownerMap: clean.ownerMap,

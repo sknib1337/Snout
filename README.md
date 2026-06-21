@@ -271,6 +271,18 @@ npm run eval -- --live  # optional: run the real agent instead of KB-only (uses 
 Current measured numbers live in [kb/EVAL.md](./kb/EVAL.md). The scoring itself stays the
 transparent mean documented in [METHODOLOGY.md](./METHODOLOGY.md).
 
+## Assessment correctness (optional)
+
+Two off-by-default passes deepen single-assessment trustworthiness (each adds latency/cost on
+the web-search path):
+
+- **`VERIFY_FINDINGS=true`** — an adversarial **refutation pass**: a second LLM call tries to
+  refute each verdict, and Snout *deterministically* demotes anything it can't defend to
+  `unknown` (capping the recommendation). Human-verified KB facts are never demoted.
+- **`CHECK_CITATIONS=true`** — fetches each cited page (SSRF-guarded: `safeUrl()` public-only +
+  `redirect: manual` + timeout + size cap) and **drops citations that don't actually mention the
+  control/standard**. Unfetchable pages are kept (no false drops).
+
 ## Posture, monitoring & governance
 
 - **Auth-posture findings** — every discovered app is scored for identity risk (no corporate

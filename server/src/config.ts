@@ -56,6 +56,14 @@ export const config = {
 
   dataDir: process.env.DATA_DIR || "./data",
 
+  // Correctness passes (depth D3), off by default (each adds latency/cost on the
+  // web_search path). VERIFY_FINDINGS runs an adversarial refutation LLM pass that
+  // demotes unproven verdicts; CHECK_CITATIONS fetches cited pages (SSRF-guarded) and
+  // drops citations that don't support the claim.
+  verifyFindings: process.env.VERIFY_FINDINGS === "true",
+  checkCitations: process.env.CHECK_CITATIONS === "true",
+  citationTimeoutMs: num(process.env.CITATION_TIMEOUT_MS, 6000),
+
   // Capability flag: when false, the catalog ingest/discovered routes are not
   // mounted and the dashboard hides the Discovered view (ship with or without
   // the shadow-discovery extension from one build).
