@@ -71,6 +71,17 @@ export const config = {
   reassessStaleHours: num(process.env.REASSESS_STALE_HOURS, 168),
   reassessBatch: num(process.env.REASSESS_BATCH, 3),
 
+  // IdP pull-pollers (depth D4, off by default). Zero-touch discovery from sign-in
+  // logs using native fetch + stored API credentials (no new dependency). Okta uses
+  // an SSWS API token; Entra uses an app registration (client-credentials). Google is
+  // not included (its Reports API auth needs JWT signing / an extra dependency).
+  oktaLogUrl: (process.env.OKTA_LOG_URL || "").replace(/\/+$/, ""), // e.g. https://org.okta.com/api/v1/logs
+  oktaApiToken: process.env.OKTA_API_TOKEN || "",
+  entraTenantId: process.env.ENTRA_TENANT_ID || "",
+  entraClientId: process.env.ENTRA_CLIENT_ID || "",
+  entraClientSecret: process.env.ENTRA_CLIENT_SECRET || "",
+  idpPollIntervalMinutes: num(process.env.IDP_POLL_INTERVAL_MINUTES, 0),
+
   // Capability flag: when false, the catalog ingest/discovered routes are not
   // mounted and the dashboard hides the Discovered view (ship with or without
   // the shadow-discovery extension from one build).
@@ -105,6 +116,9 @@ export function assertStartup() {
   }
   if (config.llmBaseUrl && !safeBaseUrl(config.llmBaseUrl)) {
     throw new Error("LLM_BASE_URL must be a valid http(s) URL without embedded credentials.");
+  }
+  if (config.oktaLogUrl && !safeBaseUrl(config.oktaLogUrl)) {
+    throw new Error("OKTA_LOG_URL must be a valid http(s) URL without embedded credentials.");
   }
 
   // Fail closed: no anonymous, unauthenticated API in production.

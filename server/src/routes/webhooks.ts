@@ -4,7 +4,7 @@ import { config } from "../config";
 import { hmacHex, safeEqual } from "../lib/hmac";
 import { assessApp, AssessInput } from "../agent";
 import { store } from "../store";
-import { idpAdapters, emailToUpsert, sanitizeUpsert } from "../discovery";
+import { idpAdapters, emailToUpsert, sanitizeUpsert, ingestIdp } from "../discovery";
 import { sanitizeField, safeUrl } from "../security/sanitize";
 
 export const webhooks = Router();
@@ -66,18 +66,9 @@ webhooks.post("/idp/:source", async (req, res, next) => {
   if (!config.enableCatalog) return res.status(404).json({ error: "Catalog is disabled" });
   if (!verifiedRaw(req, res)) return;
 
-  const fn = idpAdapters[req.params.source];
-  if (!fn) return res.status(400).json({ error: `Unknown IdP source '${req.params.source}'` });
-
-  let accepted = 0, skipped = 0;
+  if (!idpAdapters[req.params.source]) return res.status(400).json({ error: `Unknown IdP source '${req.params.source}'` });
   try {
-    for (const item of recordsOf(req.body)) {
-      const u = sanitizeUpsert(fn(item));
-      if (!u) { skipped++; continue; }
-      await store.upsertDiscovered(u);
-      accepted++;
-    }
-    res.status(202).json({ accepted, skipped });
+    res.status(202).json(await ingestIdp(recordsOf(req.body), req.params.source));
   } catch (e) { next(e); }
 });
 

@@ -7,6 +7,12 @@ All notable changes to Snout are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **IdP pull-pollers** (`server/src/pollers.ts`, depth D4). Optional zero-touch discovery:
+  Snout periodically pulls Okta System Log (`OKTA_LOG_URL` + SSWS `OKTA_API_TOKEN`) and Microsoft
+  Entra sign-ins (`ENTRA_TENANT_ID`/`ENTRA_CLIENT_ID`/`ENTRA_CLIENT_SECRET`) via native fetch — no
+  new dependency — and feeds them through the same adapters as the push webhooks. Off unless
+  `IDP_POLL_INTERVAL_MINUTES` is set; outbound only to your IdP; `OKTA_LOG_URL` is validated at
+  startup; credentials are never logged. (Google Workspace omitted — its auth needs JWT signing.)
 - **Supporting depth (D4/D5).** Multi-sensor discovery now reduces hosts to the **registrable
   domain** (eTLD+1, heuristic public-suffix set — no new dependency) so sensors dedupe correctly.
   Optional **scheduled re-assessment** (`REASSESS_INTERVAL_HOURS`) re-runs stale assessments and

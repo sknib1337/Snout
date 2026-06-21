@@ -4,6 +4,7 @@
 // make NO outbound calls and store NO IdP/mailbox credentials. Every adapter output
 // passes sanitizeUpsert() before it touches the store.
 import { sanitizeField } from "./security/sanitize";
+import { store } from "./store";
 import type { DiscoveredUpsert } from "./store";
 
 // A registrable host: 1+ labels + a TLD, lowercased, total <= 253 chars.
@@ -155,6 +156,21 @@ export function emailToUpsert(m: any): DiscoveredUpsert | null {
     lastSeen: ts,
     events: [{ ts: ts ?? Date.now(), source: "email", kind: "signup", detail: subject.slice(0, 80) || "account email" }],
   };
+}
+
+/** Map IdP log records through an adapter into the discovered store (shared by the
+ *  push webhook and the pull pollers). Records without a resolvable domain are skipped. */
+export async function ingestIdp(records: any[], source: string): Promise<{ accepted: number; skipped: number }> {
+  const fn = idpAdapters[source];
+  if (!fn) return { accepted: 0, skipped: records.length };
+  let accepted = 0, skipped = 0;
+  for (const r of records.slice(0, 500)) {
+    const u = sanitizeUpsert(fn(r));
+    if (!u) { skipped++; continue; }
+    await store.upsertDiscovered(u);
+    accepted++;
+  }
+  return { accepted, skipped };
 }
 
 /** Sanitize + bound an adapter's output, validating the domain. Returns null if the

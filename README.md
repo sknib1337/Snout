@@ -155,6 +155,12 @@ browser extension by forwarding your own telemetry to HMAC-signed endpoints (sam
   Snout records the *sender's* domain as a discovered app when the mail looks like a
   signup/account notice; personal mailboxes and newsletters are ignored.
 
+**Pull-pollers (zero-touch)** — instead of pushing, Snout can *pull* sign-in logs on a schedule
+(no extra dependency). Set `IDP_POLL_INTERVAL_MINUTES` plus `OKTA_LOG_URL` + `OKTA_API_TOKEN`
+(Okta System Log) and/or `ENTRA_TENANT_ID`/`ENTRA_CLIENT_ID`/`ENTRA_CLIENT_SECRET` (Microsoft
+Graph). Off by default; outbound calls go only to your IdP, and credentials live in env and are
+never logged. (Google Workspace isn't included — its Reports API auth needs JWT signing.)
+
 All sensors (extension, IdP logs, email) **merge by domain** into one discovered record with a
 capped per-app history (`events`), surfaced in the dashboard's **Discovered** view. Discovery is
 push-only — Snout stores no IdP/mailbox credentials and makes no outbound calls to ingest. These
