@@ -21,8 +21,8 @@
   </style>
 </head>
 <body>
-  <h1>Trust Agent — Shadow Capture</h1>
-  <p class="note">Tell the extension what your sanctioned identity provider and approved apps are, so it can tell sanctioned access apart from shadow auth. Optionally connect it to your Trust Agent server to assess discovered apps in one click.</p>
+  <h1>Snout — Shadow Capture</h1>
+  <p class="note">Tell the extension what your sanctioned identity provider and approved apps are, so it can tell sanctioned access apart from shadow auth. Optionally connect it to your Snout server to assess discovered apps in one click.</p>
 
   <label>Corporate IdP hosts (sanctioned SSO)</label>
   <textarea id="corp" placeholder="yourco.okta.com&#10;login.microsoftonline.com&#10;accounts.google.com"></textarea>
@@ -36,11 +36,11 @@
   <textarea id="ignore" placeholder="internal.yourco.com"></textarea>
   <div class="hint">Never recorded.</div>
 
-  <label>Trust Agent URL</label>
-  <input id="ta-url" placeholder="https://trust-agent.yourco.com" />
-  <label>Trust Agent API token</label>
+  <label>Snout URL</label>
+  <input id="ta-url" placeholder="https://snout.yourco.com" />
+  <label>Snout API token</label>
   <input id="ta-token" type="password" placeholder="bearer token (if API_TOKEN is set)" />
-  <div class="hint">Used by the “Assess in Trust Agent” button to POST to /api/assess.</div>
+  <div class="hint">Used by the “Assess in Snout” button to POST to /api/assess.</div>
 
   <label>Auto-sync interval (minutes)</label>
   <input id="autosync" type="number" min="0" placeholder="0 = manual sync only" />

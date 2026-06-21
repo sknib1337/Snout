@@ -12,7 +12,7 @@ import {
 import { assess as apiAssess, listAssessments, listDiscovered, assessDiscovered, deleteDiscovered, getFeatures } from "./api";
 
 /* ============================================================ *
- * Trust Agent — Critical Enterprise SaaS Controls console
+ * Snout — Critical Enterprise SaaS Controls console
  * Visual system: "Obsidian Command" / immersive deck.
  * ============================================================ */
 
@@ -215,7 +215,7 @@ function Logo({ compact }) {
         <ShieldCheck className="w-5 h-5" strokeWidth={2.3} />
       </div>
       <div className="leading-tight">
-        <div className="disp brandtext" style={{ fontSize: compact ? 16 : 18, fontWeight: 800 }}>Trust Agent</div>
+        <div className="disp brandtext" style={{ fontSize: compact ? 16 : 18, fontWeight: 800 }}>Snout</div>
         <div className="mono txt-secondary" style={{ fontSize: 9.5, letterSpacing: "0.18em", marginTop: 2, textTransform: "uppercase" }}>SaaS Controls</div>
       </div>
     </div>
@@ -582,7 +582,7 @@ const MOCK_CATALOG = {
 };
 
 const SNIPPETS = {
-  inbound: `// Inbound catalog webhook — ServiceNow / Okta / NetSuite -> Trust Agent
+  inbound: `// Inbound catalog webhook — ServiceNow / Okta / NetSuite -> Snout
 // Deploy as a serverless function or Express route. Verifies HMAC, normalizes
 // app metadata, then queues an assessment.
 ${"imp" + "ort"} express from "${"expr" + "ess"}";
@@ -592,7 +592,7 @@ const app = express();
 app.use(express.json());
 
 function verify(req, secret) {
-  const sig = req.header("x-ta-signature") || "";
+  const sig = req.header("x-snout-signature") || "";
   const mac = crypto.createHmac("sha256", secret)
     .update(JSON.stringify(req.body)).digest("hex");
   return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(mac));
@@ -606,7 +606,7 @@ const normalize = {
 };
 
 app.post("/webhooks/catalog/:source", (req, res) => {
-  if (!verify(req, process.env.TA_WEBHOOK_SECRET)) return res.status(401).end();
+  if (!verify(req, process.env.SNOUT_WEBHOOK_SECRET)) return res.status(401).end();
   const items = [].concat(req.body.records || req.body);
   const apps = items.map(normalize[req.params.source]);
   apps.forEach((a) => queueAssessment(a)); // -> calls runAgent(), persists result
@@ -615,37 +615,37 @@ app.post("/webhooks/catalog/:source", (req, res) => {
 
 app.listen(8787);`,
 
-  servicenow: `# ServiceNow — push CMDB SaaS records to Trust Agent
+  servicenow: `# ServiceNow — push CMDB SaaS records to Snout
 # Flow Designer > Action: REST step (run on insert/update of cmdb_ci_service_discovered)
-POST https://trust-agent.yourco.com/webhooks/catalog/servicenow
+POST https://snout.yourco.com/webhooks/catalog/servicenow
 Headers:
   Content-Type: application/json
-  x-ta-signature: \${hmac_sha256(payload, TA_WEBHOOK_SECRET)}
+  x-snout-signature: \${hmac_sha256(payload, SNOUT_WEBHOOK_SECRET)}
 Body:
   { "records": [ { "sys_id": "...", "u_app_name": "Asana",
                    "u_vendor": "Asana Inc.", "u_category": "Work management" } ] }`,
 
-  okta: `// Okta — pull the app catalog on a schedule, forward to Trust Agent
+  okta: `// Okta — pull the app catalog on a schedule, forward to Snout
 // Run in Okta Workflows (HTTP card) or a cron job using the Apps API.
 const r = await fetch("https://yourco.okta.com/api/v1/apps?limit=200", {
   headers: { Authorization: "SSWS " + process.env.OKTA_API_TOKEN },
 });
 const apps = await r.json();
-await fetch("https://trust-agent.yourco.com/webhooks/catalog/okta", {
+await fetch("https://snout.yourco.com/webhooks/catalog/okta", {
   method: "POST",
   headers: { "Content-Type": "application/json",
-             "x-ta-signature": sign(apps) },
+             "x-snout-signature": sign(apps) },
   body: JSON.stringify({ records: apps }),
 });`,
 
-  slack: `// Slack slash command: /trust <app name>
+  slack: `// Slack slash command: /snout <app name>
 // Set the command's Request URL to this endpoint. Responds in-channel,
 // no login to the webapp required.
 ${"imp" + "ort"} express from "${"expr" + "ess"}";
 const app = express();
 app.use(express.urlencoded({ extended: true }));
 
-app.post("/slack/trust", async (req, res) => {
+app.post("/slack/snout", async (req, res) => {
   const appName = (req.body.text || "").trim();
   res.json({ response_type: "ephemeral", text: \`Assessing *\${appName}*… one moment.\` });
 
@@ -662,7 +662,7 @@ app.post("/slack/trust", async (req, res) => {
           text: \`*Verdict:* \${a.recommendation}\\n\${a.summary}\` } },
         { type: "actions", elements: [
           { type: "button", text: { type: "plain_text", text: "Open full report" },
-            url: \`https://trust-agent.yourco.com/a/\${a.id}\` } ] },
+            url: \`https://snout.yourco.com/a/\${a.id}\` } ] },
       ],
     }),
   });
@@ -670,8 +670,8 @@ app.post("/slack/trust", async (req, res) => {
 app.listen(8788);`,
 
   teams: `// Microsoft Teams — outgoing webhook / bot
-// @TrustAgent assess Notion   ->   POST to this endpoint (HMAC in Authorization)
-app.post("/teams/trust", async (req, res) => {
+// @Snout assess Notion   ->   POST to this endpoint (HMAC in Authorization)
+app.post("/teams/snout", async (req, res) => {
   const text = (req.body.text || "").replace(/<at>.*<\\/at>/, "").trim();
   const appName = text.replace(/^assess\\s+/i, "");
   const a = persist(await runAgent({ name: appName }));
@@ -688,7 +688,7 @@ app.post("/teams/trust", async (req, res) => {
           { type: "TextBlock", wrap: true, isSubtle: true, text: a.summary },
         ],
         actions: [{ type: "Action.OpenUrl", title: "Open full report",
-          url: \`https://trust-agent.yourco.com/a/\${a.id}\` }],
+          url: \`https://snout.yourco.com/a/\${a.id}\` }],
       },
     }],
   });
@@ -727,12 +727,12 @@ function Integrations({ onAssessCatalog }) {
       <div className="panel p-5">
         <h3 className="caps txt-var flex items-center gap-1.5"><FileText className="w-4 h-4 txt-dim" /> Deployable handlers</h3>
         <div className="flex flex-wrap gap-1.5 mt-3 mb-4">
-          {[["inbound", "Inbound webhook"], ["servicenow", "ServiceNow"], ["okta", "Okta"], ["slack", "Slack /trust"], ["teams", "Teams bot"]].map(([k, l]) => (
+          {[["inbound", "Inbound webhook"], ["servicenow", "ServiceNow"], ["okta", "Okta"], ["slack", "Slack /snout"], ["teams", "Teams bot"]].map(([k, l]) => (
             <button key={k} onClick={() => setTab(k)} className="caps" style={{ padding: "0.4rem 0.6rem", borderRadius: 4, cursor: "pointer", border: `1px solid ${tab === k ? C.primary : C.outlineVar}`, background: tab === k ? "rgba(173,198,255,0.08)" : "transparent", color: tab === k ? C.primary : C.onVar }}>{l}</button>
           ))}
         </div>
         <CodeBlock label={`${tab}.${tab === "servicenow" ? "txt" : "js"}`} code={SNIPPETS[tab]} />
-        <p className="mono txt-dim" style={{ fontSize: 10.5, marginTop: 12, lineHeight: 1.7 }}>These call the same runAgent() the dashboard uses and write to the same store, so /trust Notion in Slack and a click here produce one identical record. Sign every webhook with an HMAC shared secret; scope catalog API tokens to read-only.</p>
+        <p className="mono txt-dim" style={{ fontSize: 10.5, marginTop: 12, lineHeight: 1.7 }}>These call the same runAgent() the dashboard uses and write to the same store, so /snout Notion in Slack and a click here produce one identical record. Sign every webhook with an HMAC shared secret; scope catalog API tokens to read-only.</p>
       </div>
     </div>
   );
@@ -763,7 +763,7 @@ function Discovered({ apps, busyDomain, onAssess, onOpen, onDelete }) {
         <div className="mx-auto grid place-items-center" style={{ width: 52, height: 52, borderRadius: 10, background: "rgba(173,198,255,0.08)" }}><RadarIcon className="w-6 h-6 txt-primary" /></div>
         <div className="disp" style={{ fontSize: 18, fontWeight: 600, marginTop: 14, color: C.on }}>No discovered apps yet</div>
         <p className="txt-var mx-auto" style={{ fontSize: 13, marginTop: 6, maxWidth: 460, lineHeight: 1.6 }}>
-          Install the Trust Agent browser extension, set your corporate IdP in its options, then click <b>Sync</b>.
+          Install the Snout browser extension, set your corporate IdP in its options, then click <b>Sync</b>.
           Apps you authenticate to — and how (SSO, social, local password, OAuth grants) — show up here for triage and one-click assessment.
         </p>
       </div>
@@ -921,7 +921,7 @@ export default function App() {
     if (match) { open(match.id); } else { setCatalogQuery(v); setView("catalog"); }
   };
 
-  const title = view === "detail" && current ? current.app : (TITLES[view] || "Trust Agent");
+  const title = view === "detail" && current ? current.app : (TITLES[view] || "Snout");
   const navActive = (key) => view === key || ((view === "detail" || view === "assess") && key === "command");
 
   return (
@@ -991,7 +991,7 @@ export default function App() {
               ) : (
                 <CommandCenter assessments={assessments} onOpen={open} onNew={() => goNew()} goCatalog={() => setView("catalog")} />
               )}
-              <footer className="mt-8 mono txt-dim" style={{ fontSize: 10.5, lineHeight: 1.7 }}>Trust Agent scores the six critical enterprise SaaS controls — SSO · lifecycle · entitlements · risk signals · logout · token revocation. Verdicts are evidence-backed, not advice; confirm citations before acting.</footer>
+              <footer className="mt-8 mono txt-dim" style={{ fontSize: 10.5, lineHeight: 1.7 }}>Snout scores the six critical enterprise SaaS controls — SSO · lifecycle · entitlements · risk signals · logout · token revocation. Verdicts are evidence-backed, not advice; confirm citations before acting.</footer>
             </div>
           </div>
         </main>

@@ -25,7 +25,7 @@ function card(title: string, lines: string[], url?: string) {
   };
 }
 
-teams.post("/trust", async (req, res) => {
+teams.post("/snout", async (req, res) => {
   if (!config.teamsSecurityToken) return res.status(501).json({ text: "TEAMS_SECURITY_TOKEN not configured" });
 
   // Teams outgoing webhooks sign the body: Authorization: HMAC <base64>.
@@ -37,7 +37,7 @@ teams.post("/trust", async (req, res) => {
 
   const text = String(req.body.text || "").replace(/<at>.*?<\/at>/g, "").trim();
   const appName = text.replace(/^assess\s+/i, "").trim();
-  if (!appName) return res.json(card("Trust Agent", ["Mention me with: `assess <app name>`"]));
+  if (!appName) return res.json(card("Snout", ["Mention me with: `assess <app name>`"]));
 
   // Teams expects a reply within ~5s. If we have a recent assessment, return it now.
   const existing = (await store.list()).find((a) => a.app.toLowerCase() === appName.toLowerCase());
@@ -53,5 +53,5 @@ teams.post("/trust", async (req, res) => {
   // reply, upgrade this route to a Bot Framework bot and post a proactive
   // message using the saved conversation reference (see README).
   assessApp({ name: appName }).then((a) => store.upsertByApp(a)).catch((e) => console.error("[teams]", e.message));
-  res.json(card("Assessment started", [`Researching ${forChat(appName, 120)} — open Trust Agent in ~30s for the full report.`], config.appBaseUrl));
+  res.json(card("Assessment started", [`Researching ${forChat(appName, 120)} — open Snout in ~30s for the full report.`], config.appBaseUrl));
 });

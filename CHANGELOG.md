@@ -1,10 +1,15 @@
 # Changelog
 
-All notable changes to Trust Agent are documented here. The format is based on
+All notable changes to Snout are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+### Changed
+- Rebranded the product from "Trust Agent" to **Snout**. Renamed packages, the
+  extension, the `/snout` Slack/Teams command, the `SNOUT_WEBHOOK_SECRET` env var, and
+  the extension `snoutUrl`/`snoutToken` settings. No functional changes.
 
 ## [1.0.0] - 2026-06-20
 
@@ -17,7 +22,7 @@ All notable changes to Trust Agent are documented here. The format is based on
   assessments, a needs-attention feed, searchable assessment catalog, and a detail view
   with the trust hexagon, per-control evidence, and operational due diligence.
 - **Integrations** — inbound catalog webhooks for ServiceNow / Okta / NetSuite (HMAC
-  signed), a Slack `/trust` slash command, a Microsoft Teams bot, and deployable handler
+  signed), a Slack `/snout` slash command, a Microsoft Teams bot, and deployable handler
   snippets in-app.
 - **Shadow discovery** — `/api/catalog` bulk ingest, a **Discovered** dashboard view, and
   one-click assess-and-link from a discovered app.
@@ -38,5 +43,5 @@ All notable changes to Trust Agent are documented here. The format is based on
   CORS, a leak-free error handler with request ids, and per-assessment audit logging.
   Full threat model and control mapping in [SECURITY.md](./SECURITY.md).
 
-[Unreleased]: https://github.com/sknib1337/trust-agent/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/sknib1337/trust-agent/releases/tag/v1.0.0
+[Unreleased]: https://github.com/sknib1337/snout/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/sknib1337/snout/releases/tag/v1.0.0

@@ -26,7 +26,7 @@ jobs:
       - name: Build extension zip (Web Store ready — manifest at root)
         run: |
           cd extension
-          zip -r "../trust-agent-extension-${GITHUB_REF_NAME}.zip" . -x '*.DS_Store' '*/.*'
+          zip -r "../snout-extension-${GITHUB_REF_NAME}.zip" . -x '*.DS_Store' '*/.*'
 
       - name: Extract changelog section for this version
         run: |
@@ -43,7 +43,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: Trust Agent ${{ github.ref_name }}
+          name: Snout ${{ github.ref_name }}
           body_path: RELEASE_NOTES.md
-          files: trust-agent-extension-*.zip
+          files: snout-extension-*.zip
           fail_on_unmatched_files: true

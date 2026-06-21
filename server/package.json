@@ -1,8 +1,8 @@
 {
-  "name": "trust-agent-server",
+  "name": "snout-server",
   "version": "1.0.0",
   "private": true,
-  "description": "Trust Agent API — runs the assessment agent, persistence, and chat/catalog webhooks.",
+  "description": "Snout API — runs the assessment agent, persistence, and chat/catalog webhooks.",
   "license": "MIT",
   "scripts": {
     "dev": "tsx watch src/index.ts",

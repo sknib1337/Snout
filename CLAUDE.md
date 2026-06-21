@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Context for working on Trust Agent in Claude Code. Read this before making changes.
+Context for working on Snout in Claude Code. Read this before making changes.
 
 ## What this is
 

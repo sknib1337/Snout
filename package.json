@@ -1,8 +1,8 @@
 {
-  "name": "trust-agent",
+  "name": "snout",
   "version": "1.0.0",
   "private": true,
-  "description": "Trust Agent — agent-driven due diligence for critical enterprise SaaS controls.",
+  "description": "Snout — agent-driven due diligence for critical enterprise SaaS controls.",
   "license": "MIT",
   "scripts": {
     "install:all": "npm --prefix server install && npm --prefix web install",

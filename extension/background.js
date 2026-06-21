@@ -4,8 +4,8 @@ const DEFAULT_SETTINGS = {
   corpIdpDomains: [],     // your sanctioned IdP hosts, e.g. ["yourco.okta.com","login.microsoftonline.com"]
   sanctionedApps: [],     // explicitly approved app domains
   ignoreDomains: [],      // never record these
-  trustAgentUrl: "",      // e.g. https://trust-agent.yourco.com
-  trustAgentToken: "",
+  snoutUrl: "",      // e.g. https://snout.yourco.com
+  snoutToken: "",
   autoSyncMinutes: 0,     // 0 = manual sync only; otherwise periodic auto-sync
   paused: false,
 };
@@ -114,7 +114,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === "setPaused") { db.settings.paused = !!msg.paused; await save(db); return sendResponse({ ok: true }); }
     if (msg.type === "saveSettings") { db.settings = { ...db.settings, ...msg.settings }; await save(db); scheduleSync(db.settings.autoSyncMinutes); return sendResponse({ ok: true }); }
     if (msg.type === "assess") {
-      try { const r = await assessInTrustAgent(db, msg.domain); sendResponse({ ok: true, result: r }); }
+      try { const r = await assessInSnout(db, msg.domain); sendResponse({ ok: true, result: r }); }
       catch (e) { sendResponse({ ok: false, error: e.message }); }
       return;
     }
@@ -128,38 +128,38 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   return true; // async response
 });
 
-async function assessInTrustAgent(db, domain) {
+async function assessInSnout(db, domain) {
   const s = db.settings;
-  if (!s.trustAgentUrl) throw new Error("Set the Trust Agent URL in Options first.");
+  if (!s.snoutUrl) throw new Error("Set the Snout URL in Options first.");
   const app = db.apps[domain];
   const methods = Object.entries(app.methods).filter(([, v]) => v).map(([k]) => k).join(", ") || "none observed";
-  const res = await fetch(s.trustAgentUrl.replace(/\/$/, "") + "/api/assess", {
+  const res = await fetch(s.snoutUrl.replace(/\/$/, "") + "/api/assess", {
     method: "POST",
-    headers: { "content-type": "application/json", ...(s.trustAgentToken ? { authorization: "Bearer " + s.trustAgentToken } : {}) },
+    headers: { "content-type": "application/json", ...(s.snoutToken ? { authorization: "Bearer " + s.snoutToken } : {}) },
     body: JSON.stringify({
       name: app.name,
       url: "https://" + app.domain,
       context: `Discovered via browser extension. Observed auth methods: ${methods}. IdPs: ${app.idps.join(", ") || "n/a"}.`,
     }),
   });
-  if (!res.ok) throw new Error(`Trust Agent responded ${res.status}`);
+  if (!res.ok) throw new Error(`Snout responded ${res.status}`);
   return res.json();
 }
 
 async function syncCatalog(db) {
   const s = db.settings;
-  if (!s.trustAgentUrl) throw new Error("Set the Trust Agent URL in Options first.");
+  if (!s.snoutUrl) throw new Error("Set the Snout URL in Options first.");
   const apps = Object.values(db.apps).map((a) => ({
     domain: a.domain, name: a.name, methods: a.methods, idps: a.idps,
     oauth: a.oauth, sources: ["extension"], firstSeen: a.firstSeen, lastSeen: a.lastSeen,
   }));
   if (!apps.length) return { accepted: 0 };
-  const res = await fetch(s.trustAgentUrl.replace(/\/$/, "") + "/api/catalog", {
+  const res = await fetch(s.snoutUrl.replace(/\/$/, "") + "/api/catalog", {
     method: "POST",
-    headers: { "content-type": "application/json", ...(s.trustAgentToken ? { authorization: "Bearer " + s.trustAgentToken } : {}) },
+    headers: { "content-type": "application/json", ...(s.snoutToken ? { authorization: "Bearer " + s.snoutToken } : {}) },
     body: JSON.stringify({ apps }),
   });
-  if (!res.ok) throw new Error(`Trust Agent responded ${res.status}`);
+  if (!res.ok) throw new Error(`Snout responded ${res.status}`);
   return res.json();
 }
 
@@ -177,7 +177,7 @@ async function applyManaged() {
   try { managed = (await chrome.storage.managed.get(null)) || {}; } catch { managed = {}; }
   const db = await load();
   if (managed && Object.keys(managed).length) {
-    for (const k of ["corpIdpDomains", "sanctionedApps", "ignoreDomains", "trustAgentUrl", "trustAgentToken", "autoSyncMinutes", "paused"]) {
+    for (const k of ["corpIdpDomains", "sanctionedApps", "ignoreDomains", "snoutUrl", "snoutToken", "autoSyncMinutes", "paused"]) {
       if (managed[k] !== undefined) db.settings[k] = managed[k];
     }
     await save(db);

@@ -24,9 +24,9 @@ async function queue(input: AssessInput) {
 }
 
 webhooks.post("/catalog/:source", (req, res) => {
-  if (!config.webhookSecret) return res.status(501).json({ error: "TA_WEBHOOK_SECRET not configured" });
+  if (!config.webhookSecret) return res.status(501).json({ error: "SNOUT_WEBHOOK_SECRET not configured" });
 
-  const sig = req.header("x-ta-signature") || "";
+  const sig = req.header("x-snout-signature") || "";
   const raw = (req as any).rawBody as Buffer | undefined;
   if (!raw || !safeEqual(sig, hmacHex(config.webhookSecret, raw))) {
     return res.status(401).json({ error: "Bad signature" });

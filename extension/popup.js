@@ -55,7 +55,7 @@ function render() {
       <div class="methods">${methodBadges(a)}</div>
       ${scopes}
       <div class="row-act">
-        <button class="ghost act-assess">Assess in Trust Agent</button>
+        <button class="ghost act-assess">Assess in Snout</button>
         <button class="ghost act-ignore">Ignore</button>
       </div>
     </div>`;
@@ -89,9 +89,9 @@ document.querySelectorAll(".chip").forEach((c) =>
 $("pause").addEventListener("click", async () => { await send({ type: "setPaused", paused: !db.settings.paused }); refresh(); });
 $("options").addEventListener("click", () => chrome.runtime.openOptionsPage());
 $("sync").addEventListener("click", async () => {
-  toast("Syncing to Trust Agent…");
+  toast("Syncing to Snout…");
   const r = await send({ type: "syncCatalog" });
-  if (r?.ok) toast(`Synced ${r.accepted} app${r.accepted === 1 ? "" : "s"} to Trust Agent`);
+  if (r?.ok) toast(`Synced ${r.accepted} app${r.accepted === 1 ? "" : "s"} to Snout`);
   else toast(r?.error || "Sync failed — set the URL in Options.");
 });
 $("clear").addEventListener("click", async () => { if (confirm("Clear all captured apps?")) { await send({ type: "clearAll" }); refresh(); } });

@@ -8,8 +8,8 @@ async function init() {
   $("corp").value = (s.corpIdpDomains || []).join("\n");
   $("sanctioned").value = (s.sanctionedApps || []).join("\n");
   $("ignore").value = (s.ignoreDomains || []).join("\n");
-  $("ta-url").value = s.trustAgentUrl || "";
-  $("ta-token").value = s.trustAgentToken || "";
+  $("ta-url").value = s.snoutUrl || "";
+  $("ta-token").value = s.snoutToken || "";
   $("autosync").value = s.autoSyncMinutes || 0;
 }
 
@@ -20,8 +20,8 @@ $("save").addEventListener("click", async () => {
       corpIdpDomains: lines($("corp").value),
       sanctionedApps: lines($("sanctioned").value),
       ignoreDomains: lines($("ignore").value),
-      trustAgentUrl: $("ta-url").value.trim(),
-      trustAgentToken: $("ta-token").value.trim(),
+      snoutUrl: $("ta-url").value.trim(),
+      snoutToken: $("ta-token").value.trim(),
       autoSyncMinutes: Math.max(0, parseInt($("autosync").value, 10) || 0),
     },
   });

@@ -1,11 +1,11 @@
-# Trust Agent — Shadow SaaS & Auth Capture (Chrome extension)
+# Snout — Shadow SaaS & Auth Capture (Chrome extension)
 
 Discovers the SaaS apps you actually log into and **how** you authenticate to them,
 so you can find shadow IT and shadow auth: local passwords, consumer/social IdP
 logins, and OAuth consent grants that bypass your sanctioned corporate SSO.
 
 It is **local-first** — everything stays in your browser until you explicitly export
-or send an app to Trust Agent.
+or send an app to Snout.
 
 ## What it captures
 
@@ -41,15 +41,15 @@ content, or full URLs with query strings beyond the OAuth metadata above.
 
 The toolbar badge shows the current shadow-app count.
 
-## Connect to Trust Agent
+## Connect to Snout
 
-In Options, set the **Trust Agent URL** (e.g. `https://trust-agent.yourco.com`) and,
+In Options, set the **Snout URL** (e.g. `https://snout.yourco.com`) and,
 if the server has `API_TOKEN` set, the **API token**. Then:
 
 - **Sync** (popup footer) bulk-pushes every discovered app to `POST /api/catalog`. They
   appear in the dashboard's **Discovered** view, where each can be assessed in place
   (`POST /api/catalog/:domain/assess`, which links the result back to the discovered app).
-- **Assess in Trust Agent** (per app) runs a single assessment directly via `/api/assess`.
+- **Assess in Snout** (per app) runs a single assessment directly via `/api/assess`.
 
 The extension holds host permission for all sites, so these cross-origin calls work
 without server CORS changes.
@@ -68,8 +68,8 @@ Example managed configuration (Admin console → the extension → "Policy for e
 {
   "corpIdpDomains": { "Value": ["yourco.okta.com", "login.microsoftonline.com"] },
   "sanctionedApps": { "Value": ["salesforce.com", "atlassian.net"] },
-  "trustAgentUrl":  { "Value": "https://trust-agent.yourco.com" },
-  "trustAgentToken":{ "Value": "REDACTED" },
+  "snoutUrl":  { "Value": "https://snout.yourco.com" },
+  "snoutToken":{ "Value": "REDACTED" },
   "autoSyncMinutes":{ "Value": 30 }
 }
 ```
@@ -80,7 +80,7 @@ Example managed configuration (Admin console → the extension → "Policy for e
 - `host_permissions: <all_urls>` plus a password-form content script will draw scrutiny
   in any security review and in Chrome Web Store review — distribute as a **private/
   unlisted** Web Store item or self-host the CRX and force-install by ID.
-- Pushing `trustAgentToken` via policy is convenient but puts a bearer token on every
+- Pushing `snoutToken` via policy is convenient but puts a bearer token on every
   endpoint; prefer a short-lived/per-fleet token and rotate it, or terminate auth at an
   ingress the extension reaches without a token.
 - `autoSyncMinutes` is clamped to a 5-minute floor by the Chrome alarms API.
@@ -92,5 +92,5 @@ Example managed configuration (Admin console → the extension → "Policy for e
 - `alarms` — periodic auto-sync when configured.
 - `storage.managed` — read enterprise policy (zero-touch config).
 - `host_permissions: <all_urls>` — required to observe logins across the SaaS you use
-  and to call your Trust Agent server. The extension never sends browsing data anywhere
+  and to call your Snout server. The extension never sends browsing data anywhere
   on its own.
