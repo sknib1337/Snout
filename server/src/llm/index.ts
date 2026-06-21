@@ -1,5 +1,6 @@
 import { config } from "../config";
 import { AnthropicProvider } from "./anthropic";
+import { OpenAICompatibleProvider } from "./openai";
 import type { LLMProvider } from "./types";
 
 export type { LLMProvider, CompletionInput, SearchResult } from "./types";
@@ -15,5 +16,11 @@ export function getProvider(): LLMProvider {
     if (!config.anthropicApiKey) throw new Error("ANTHROPIC_API_KEY is not configured on the server");
     return new AnthropicProvider();
   }
-  throw new Error(`Unknown LLM_PROVIDER "${name}". Supported: "anthropic".`);
+  if (name === "openai" || name === "openai-compatible") {
+    if (!config.llmBaseUrl) throw new Error("LLM_BASE_URL is not configured");
+    if (!config.llmApiKey) throw new Error("LLM_API_KEY is not configured");
+    if (!config.llmModel) throw new Error("LLM_MODEL is not configured");
+    return new OpenAICompatibleProvider();
+  }
+  throw new Error(`Unknown LLM_PROVIDER "${name}". Use "anthropic" or "openai".`);
 }
