@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { safeBaseUrl } from "./security/sanitize";
 
 const env = process.env.NODE_ENV || "development";
 const num = (v: string | undefined, d: number) => (v ? Number(v) : d);
@@ -12,9 +13,22 @@ export const config = {
   webOrigin: (process.env.WEB_ORIGIN || "http://localhost:5173").split(",").map((s) => s.trim()),
   appBaseUrl: process.env.APP_BASE_URL || "http://localhost:5173",
 
+  // LLM provider selection. Default "anthropic" keeps the original path unchanged.
+  llmProvider: (process.env.LLM_PROVIDER || "anthropic").trim().toLowerCase(),
+
   // Anthropic — the agent calls the Messages API with the server-side web_search tool.
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || "",
   anthropicModel: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6",
+  // Operator-configurable base URL so the Anthropic path can run through a proxy or
+  // gateway. Trailing slashes trimmed; default is the public API.
+  anthropicBaseUrl: (process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com").replace(/\/+$/, ""),
+
+  // OpenAI-compatible provider (LLM_PROVIDER=openai). LLM_BASE_URL is operator-trusted
+  // config (may be an internal gateway); it is shape-validated at startup, NOT routed
+  // through safeUrl()'s private-host block. LLM_BASE_URL is the root WITHOUT a path.
+  llmBaseUrl: (process.env.LLM_BASE_URL || "").replace(/\/+$/, ""),
+  llmApiKey: process.env.LLM_API_KEY || "",
+  llmModel: process.env.LLM_MODEL || "",
 
   // Auth. Required in production unless ALLOW_ANON=true (discouraged).
   apiToken: process.env.API_TOKEN || "",
@@ -43,9 +57,35 @@ export const config = {
 };
 
 export function assertStartup() {
-  if (!config.anthropicApiKey) {
-    console.warn("[snout] ANTHROPIC_API_KEY is not set — /api/assess will fail until you add it.");
+  // Validate the SELECTED provider's config. Anthropic stays warn-only (unchanged:
+  // the server may run without a key for non-assess use); new providers fail closed.
+  const provider = config.llmProvider;
+  if (provider === "anthropic") {
+    if (!config.anthropicApiKey) {
+      console.warn("[snout] ANTHROPIC_API_KEY is not set — /api/assess will fail until you add it.");
+    }
+  } else if (provider === "openai") {
+    const missing = ([
+      ["LLM_BASE_URL", config.llmBaseUrl],
+      ["LLM_API_KEY", config.llmApiKey],
+      ["LLM_MODEL", config.llmModel],
+    ] as const).filter(([, v]) => !v).map(([k]) => k);
+    if (missing.length) {
+      throw new Error(`LLM_PROVIDER=${provider} requires ${missing.join(", ")}. Set them, or use LLM_PROVIDER=anthropic.`);
+    }
+  } else {
+    throw new Error(`Unknown LLM_PROVIDER "${provider}". Use "anthropic" or "openai".`);
   }
+
+  // Operator base URLs are trusted config (may be internal hosts) but still get a
+  // light shape check — http(s) only, no embedded credentials. Fail closed if bad.
+  if (process.env.ANTHROPIC_BASE_URL && !safeBaseUrl(config.anthropicBaseUrl)) {
+    throw new Error("ANTHROPIC_BASE_URL must be a valid http(s) URL without embedded credentials.");
+  }
+  if (config.llmBaseUrl && !safeBaseUrl(config.llmBaseUrl)) {
+    throw new Error("LLM_BASE_URL must be a valid http(s) URL without embedded credentials.");
+  }
+
   // Fail closed: no anonymous, unauthenticated API in production.
   if (config.isProd && !config.apiToken && !config.allowAnon) {
     throw new Error(

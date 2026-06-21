@@ -43,7 +43,13 @@ The model can't separate instructions from data, so we don't rely on it to.
 - Request bodies capped (`BODY_LIMIT`, default 64 kB); agent calls have a 90 s timeout and a bounded `max_tokens`.
 
 ### SSRF (API7)
-- Every URL — the user-supplied one and every agent citation — passes `safeUrl()`: http(s) only, no embedded credentials, and **private / loopback / link-local / cloud-metadata (169.254.169.254) hosts blocked**. The server does not fetch user URLs today; this hardens the citation surface and pre-empts adding `web_fetch`.
+- Every **untrusted** URL — the user-supplied one and every agent citation — passes `safeUrl()`: http(s) only, no embedded credentials, and **private / loopback / link-local / cloud-metadata (169.254.169.254) hosts blocked**. The server does not fetch user URLs today; this hardens the citation surface and pre-empts adding `web_fetch`.
+- The **LLM endpoint base URL** (`ANTHROPIC_BASE_URL` / `LLM_BASE_URL`) is **operator-trusted configuration**, sourced only from the server's environment and *never* from request data. It legitimately needs to reach internal gateways (LiteLLM, vLLM, Ollama on `127.0.0.1`/`10.x`/`[::1]`), so it intentionally does **not** go through the `safeUrl()` private-host block. It still gets a lighter check via `safeBaseUrl()` — http(s) only and no embedded credentials — validated at startup (fail closed). This keeps the boundary clean: `safeUrl()` stays strict for untrusted input/citation URLs; only the trusted base URL is exempt from the host block.
+
+### Provider portability & grounding
+- The LLM call sits behind a provider abstraction, but **`validateAgentOutput()` always runs** on every provider's output — the security schema can't be bypassed by switching providers. Prompt fencing, input sanitization, and injection telemetry stay in `agent.ts` and apply to all providers.
+- Only the Anthropic path has live `web_search`. With a provider that lacks it, assessments run with **reduced grounding**: a deterministic post-validation guard drops all citations and downgrades any unproven `supported`/`partial` verdict to `unknown` (recommendation capped at `Hold`), because a non-search model cannot have retrieved evidence and the schema does not verify citation provenance. The grounding mode is recorded on each assessment.
+- Provider error responses are never returned to the client or used as the thrown message (a third-party gateway could echo auth headers/keys); the upstream detail is logged server-side only. API keys, bearer tokens, and base URLs are never logged or exposed via `/health` or `/api/config`.
 
 ### Security misconfiguration (API8)
 - `helmet` security headers on the API; `x-powered-by` disabled; strict CORS allowlist (`WEB_ORIGIN`).
@@ -68,6 +74,7 @@ The model can't separate instructions from data, so we don't rely on it to.
 ## Residual risks (by design)
 
 - Prompt injection cannot be fully eliminated — it's a property of LLMs. Verdicts are **evidence-backed research, not sign-off**; a human approves, and the auditable score + citations exist precisely so a reviewer can catch a manipulated result.
+- The LLM base URL is trusted config and is exempt from the SSRF host block, so anyone who can already set the server's environment (insider / leaked deploy creds) could point it at an internal host or exfiltrate the provider key. This is an accepted trade-off for supporting internal gateways; it is not reachable from the API, since the base URL is never derived from request data.
 - The default JSON store is single-node, last-write-wins.
 - Teams outgoing webhooks are synchronous (~5 s); long assessments return "started" rather than a final card (see README).
 

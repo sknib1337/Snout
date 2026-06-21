@@ -10,7 +10,10 @@ export const assessments = Router();
 // Lets the web app discover which capabilities are enabled (e.g. show/hide the
 // Discovered view). No secrets — safe behind the normal API auth.
 assessments.get("/config", (_req, res) => {
-  res.json({ features: { catalog: config.enableCatalog }, model: config.anthropicModel });
+  res.json({
+    features: { catalog: config.enableCatalog },
+    model: config.llmProvider === "anthropic" ? config.anthropicModel : config.llmModel,
+  });
 });
 
 const AssessBody = z.object({
