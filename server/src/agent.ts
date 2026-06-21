@@ -1,8 +1,8 @@
 import { randomUUID } from "crypto";
-import { config } from "./config";
 import { Assessment, computeScore } from "./controls";
 import { sanitizeField, safeUrl, detectInjection } from "./security/sanitize";
 import { validateAgentOutput } from "./security/schema";
+import { getProvider } from "./llm";
 
 export interface AssessInput {
   name: string;
@@ -50,7 +50,8 @@ function extractJson(text: string): unknown {
 
 /** Run a full assessment. Inputs are sanitized and fenced; output is validated. */
 export async function assessApp(rawInput: AssessInput): Promise<Assessment> {
-  if (!config.anthropicApiKey) throw new Error("ANTHROPIC_API_KEY is not configured on the server");
+  // Select the LLM provider (fails closed if its required config is missing).
+  const provider = getProvider();
 
   // 1) Sanitize untrusted inputs (clamp + strip control chars / newlines).
   const name = sanitizeField(rawInput.name, 120);
@@ -72,46 +73,13 @@ export async function assessApp(rawInput: AssessInput): Promise<Assessment> {
     `app_name: ${name}\nvendor: ${vendor || "(unknown)"}\nofficial_url: ${url || "(none)"}\nrequesting_context: ${context || "(none)"}\n` +
     `<<END_UNTRUSTED_INPUT>>\nToday is ${today}. Research this application and return ONLY the JSON assessment.`;
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 90_000);
-  let res: Response;
-  try {
-    res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": config.anthropicApiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: config.anthropicModel,
-        max_tokens: 4000,
-        system: SYSTEM,
-        messages: [{ role: "user", content: ask }],
-        // Least-privilege tooling: read-only web search, capped uses.
-        tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 6 }],
-      }),
-    });
-  } finally {
-    clearTimeout(timeout);
-  }
+  // 4) Call the selected provider, then deterministically validate the output.
+  const text = await provider.complete({ system: SYSTEM, user: ask });
 
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`Anthropic API ${res.status}: ${detail.slice(0, 200)}`);
-  }
-
-  const data: any = await res.json();
-  const text: string = (data.content || [])
-    .filter((b: any) => b.type === "text")
-    .map((b: any) => b.text)
-    .join("\n");
-
-  // 4) Deterministically validate + bound the model output (LLM05/LLM10).
+  // 5) Deterministically validate + bound the model output (LLM05/LLM10).
   const clean = validateAgentOutput(extractJson(text));
 
-  // 5) Build the record. Server controls id/score/assessedAt — never the model.
+  // 6) Build the record. Server controls id/score/assessedAt — never the model.
   const record: Assessment = {
     id: randomUUID(),
     app: clean.app || name,

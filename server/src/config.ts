@@ -12,9 +12,15 @@ export const config = {
   webOrigin: (process.env.WEB_ORIGIN || "http://localhost:5173").split(",").map((s) => s.trim()),
   appBaseUrl: process.env.APP_BASE_URL || "http://localhost:5173",
 
+  // LLM provider selection. Default "anthropic" keeps the original path unchanged.
+  llmProvider: (process.env.LLM_PROVIDER || "anthropic").trim().toLowerCase(),
+
   // Anthropic — the agent calls the Messages API with the server-side web_search tool.
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || "",
   anthropicModel: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6",
+  // Operator-configurable base URL so the Anthropic path can run through a proxy or
+  // gateway. Trailing slashes trimmed; default is the public API.
+  anthropicBaseUrl: (process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com").replace(/\/+$/, ""),
 
   // Auth. Required in production unless ALLOW_ANON=true (discouraged).
   apiToken: process.env.API_TOKEN || "",
