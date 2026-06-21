@@ -1,6 +1,8 @@
 services:
   server:
     build: ./server
+    # All vars from server/.env are passed through — including LLM_PROVIDER,
+    # ANTHROPIC_BASE_URL, and the LLM_* / ANTHROPIC_* provider settings.
     env_file: ./server/.env
     environment:
       - WEB_ORIGIN=http://localhost:8080

@@ -46,6 +46,10 @@ export interface Assessment {
     usageRestrictions: string;
   };
   assessedAt: string;
+  // Grounding mode of the run: "web_search" when the provider grounded with live
+  // search, "reduced" when it ran without search (verdicts are not citation-backed).
+  // Optional so assessments stored before this field remain valid.
+  grounding?: "web_search" | "reduced";
 }
 
 export function computeScore(capabilities: Partial<Record<ControlKey, ControlFinding>>): number {

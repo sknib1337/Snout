@@ -44,8 +44,10 @@ The **trust score** is a transparent mean of the six control weights
 ```
 
 - **`server/`** — Express + TypeScript. Runs the agent, persists assessments, and hosts
-  the chat + catalog webhooks. The agent calls the Anthropic Messages API with the
-  server-side `web_search` tool, so the API key never reaches the browser.
+  the chat + catalog webhooks. By default the agent calls the Anthropic Messages API with
+  the server-side `web_search` tool, so the API key never reaches the browser. The LLM call
+  sits behind a small provider abstraction (`server/src/llm/`), so it can also target any
+  Anthropic-compatible endpoint or an OpenAI-compatible one — see **Configuration**.
 - **`web/`** — React + Vite, the Obsidian Command console. Talks only to `server` over REST.
 
 Every entry point (UI, Slack, Teams, catalog webhook) funnels through the same
@@ -85,7 +87,7 @@ docker compose up --build            # web on :8080, server on :8787
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET`  | `/health` | liveness + active model |
+| `GET`  | `/health` | liveness + active provider/model |
 | `GET`  | `/api/assessments` | list, newest first |
 | `GET`  | `/api/assessments/:id` | one assessment |
 | `POST` | `/api/assess` | `{ name, vendor?, url?, context? }` → runs agent, returns the record |
@@ -132,6 +134,35 @@ button that calls `/api/assess`. Load it via `chrome://extensions → Load unpac
 
 See `server/.env.example` and `web/.env.example`. Each webhook route returns `501` until
 its secret is set, so you can enable integrations one at a time.
+
+### LLM provider
+
+The assessment agent runs through a provider abstraction (`server/src/llm/`). Anthropic is
+the default and needs **zero config change** for existing setups (`ANTHROPIC_API_KEY` alone
+behaves exactly as before).
+
+- **`LLM_PROVIDER=anthropic`** (default) — Anthropic Messages API with native `web_search`.
+  Set **`ANTHROPIC_BASE_URL`** to run through a proxy, an API gateway, or an internal
+  Anthropic-compatible endpoint (e.g. LiteLLM in Anthropic mode). `ANTHROPIC_API_KEY` and
+  `ANTHROPIC_MODEL` are unchanged.
+- **`LLM_PROVIDER=openai`** — any OpenAI-compatible `/v1/chat/completions` endpoint, set via
+  **`LLM_BASE_URL`** (server root, no path — Snout appends `/v1/chat/completions`),
+  **`LLM_API_KEY`**, and **`LLM_MODEL`**. Covers OpenAI, LiteLLM, OpenRouter, and local
+  servers like vLLM and Ollama (e.g. `LLM_BASE_URL=http://localhost:11434`).
+
+Misconfiguration fails closed at startup (e.g. `LLM_PROVIDER=openai` without `LLM_BASE_URL`).
+
+> **Web search & grounding.** Only the Anthropic path has live web search. With an
+> OpenAI-compatible provider, assessments run with **reduced grounding**: Snout instructs the
+> model to cite nothing and prefer `unknown`, and then *deterministically* drops citations and
+> downgrades any unproven `supported`/`partial` verdict to `unknown` (capping the
+> recommendation at `Hold`). Each assessment records its `grounding` mode (`web_search` |
+> `reduced`). For grounded assessments off Anthropic, front an Anthropic-compatible gateway, or
+> implement the optional `search()` seam on a provider to plug in an external search step.
+
+`ANTHROPIC_BASE_URL` / `LLM_BASE_URL` are **operator-trusted config** — they may point at
+internal hosts (that's the point of supporting gateways), so they are not subject to the
+SSRF private-host block that applies to untrusted user/citation URLs. See **[SECURITY.md](./SECURITY.md)**.
 
 ## Persistence
 

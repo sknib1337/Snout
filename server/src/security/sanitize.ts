@@ -45,6 +45,29 @@ export function safeUrl(raw: unknown): string | null {
   return u.href;
 }
 
+/**
+ * Validate an OPERATOR-CONFIGURED base URL (ANTHROPIC_BASE_URL / LLM_BASE_URL).
+ * This is TRUSTED config that may legitimately point at an internal gateway
+ * (10.x, 127.0.0.1, [::1], *.internal), so — unlike safeUrl() — it intentionally
+ * does NOT run through isPrivateHost(). It is never derived from request data.
+ * We still require http(s) and reject embedded credentials so a key can't ride in
+ * the userinfo and leak via logs/redirects. Returns the normalized URL, or null.
+ *
+ * Keep this separate from safeUrl(): safeUrl() stays strict (private-host block
+ * intact) for the UNTRUSTED user-supplied URL and model citation URLs. Do not
+ * route untrusted URLs through here, and do not route the base URL through safeUrl().
+ */
+export function safeBaseUrl(raw: unknown): string | null {
+  const s = String(raw ?? "").trim();
+  if (!s || s.length > 2048) return null;
+  let u: URL;
+  try { u = new URL(s); } catch { return null; }
+  if (!ALLOWED_PROTO.has(u.protocol)) return null;
+  if (u.username || u.password) return null;
+  if (!u.hostname) return null;
+  return u.href.replace(/\/+$/, "");
+}
+
 /** Neutralize text before sending to Slack/Teams: escape control characters
  *  used for links/mentions and strip broadcast mentions (LLM05 output handling). */
 export function forChat(text: unknown, max = 700): string {
