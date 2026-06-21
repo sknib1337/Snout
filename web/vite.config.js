@@ -10,6 +10,23 @@ export default defineConfig({
   // opens via file:// with no server. Normal build serves from root behind nginx.
   base: DEMO ? "./" : "/",
   plugins: [react(), ...(DEMO ? [viteSingleFile()] : [])],
+  // Split heavy vendors (recharts, react) into their own chunks for the normal
+  // build so no single chunk exceeds Vite's 500 kB advisory and the big charting
+  // lib is cached separately from app code. The demo is intentionally left as one
+  // inlined file (viteSingleFile requires a single chunk), so don't chunk it.
+  build: DEMO ? undefined : {
+    rollupOptions: {
+      output: {
+        // Rolldown (Vite 8) chunking: isolate the big charting lib and React.
+        advancedChunks: {
+          groups: [
+            { name: "recharts", test: /node_modules[\\/](recharts|recharts-scale|d3-[^\\/]+|victory-vendor|internmap)[\\/]/ },
+            { name: "react", test: /node_modules[\\/](react|react-dom|scheduler|react-is)[\\/]/ },
+          ],
+        },
+      },
+    },
+  },
   server: {
     port: 5173,
     proxy: {

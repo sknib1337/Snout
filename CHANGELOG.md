@@ -34,6 +34,10 @@ All notable changes to Snout are documented here. The format is based on
   `/api/config` now report the effective provider/model.
 
 ### Changed
+- **Smaller initial web chunks.** The production build now vendor-splits `recharts` (~273 kB)
+  and React (~179 kB) into their own cacheable chunks via Rolldown `advancedChunks`, so no
+  single chunk exceeds Vite's 500 kB advisory (app chunk is ~70 kB). The single-file demo build
+  is unchanged (one inlined `index.html`).
 - **Repositioned around IPSIE.** README and dashboard copy now frame the product as *open,
   transparent, IPSIE-aligned identity-trust scoring* — the six controls are mapped to the
   OpenID Foundation's IPSIE (Interoperability Profile for Secure Identity in the Enterprise)
