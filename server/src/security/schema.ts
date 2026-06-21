@@ -37,7 +37,7 @@ const RawAssessment = z.object({
   vendor: clampStr(120),
   category: clampStr(80),
   summary: clampStr(1200),
-  capabilities: z.record(Finding).default({}),
+  capabilities: z.record(z.string(), Finding).default({}),
   extended: z.object({
     discoverability: clampStr(600),
     onboardingRecovery: clampStr(600),
