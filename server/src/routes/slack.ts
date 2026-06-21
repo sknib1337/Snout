@@ -8,13 +8,13 @@ import { forChat } from "../security/sanitize";
 
 export const slack = Router();
 
-slack.post("/trust", async (req, res) => {
+slack.post("/snout", async (req, res) => {
   if (!config.slackSigningSecret) return res.status(501).send("SLACK_SIGNING_SECRET not configured");
   if (!verifySlack(req)) return res.status(401).send("Bad signature");
 
   const appName = String(req.body.text || "").trim();
   const responseUrl = req.body.response_url as string;
-  if (!appName) return res.json({ response_type: "ephemeral", text: "Usage: `/trust <app name>`" });
+  if (!appName) return res.json({ response_type: "ephemeral", text: "Usage: `/snout <app name>`" });
 
   // Acknowledge within 3s; deliver the result asynchronously.
   res.json({ response_type: "ephemeral", text: `Assessing *${appName}*… this takes ~30s.` });

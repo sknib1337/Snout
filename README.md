@@ -1,4 +1,4 @@
-# Trust Agent
+# Snout
 
 Agent-driven due diligence for the **critical enterprise SaaS controls** every app
 must support before it touches your identity fabric. Name a SaaS tool and the agent
@@ -28,7 +28,7 @@ The **trust score** is a transparent mean of the six control weights
 
 ```
                          ┌──────────────────────────────┐
-   Slack /trust ───────► │                              │
+   Slack /snout ───────► │                              │
    Teams @mention ─────► │        server (Express)      │ ──► Anthropic Messages API
    ServiceNow ─┐         │                              │     + web_search tool
    Okta ───────┼──HMAC──►│  /api/assess  → agent.ts     │ ──► vendor docs · OIDF · trust pages
@@ -49,7 +49,7 @@ The **trust score** is a transparent mean of the six control weights
 - **`web/`** — React + Vite, the Obsidian Command console. Talks only to `server` over REST.
 
 Every entry point (UI, Slack, Teams, catalog webhook) funnels through the same
-`assessApp()` and the same store, so a `/trust Notion` in Slack and a click in the
+`assessApp()` and the same store, so a `/snout Notion` in Slack and a click in the
 dashboard produce one identical record.
 
 ---
@@ -59,7 +59,7 @@ dashboard produce one identical record.
 Prerequisites: Node 20+.
 
 ```bash
-git clone <your-fork-url> trust-agent && cd trust-agent
+git clone <your-fork-url> snout && cd snout
 npm install                 # root tooling (concurrently)
 npm run install:all         # installs server + web deps
 
@@ -95,8 +95,8 @@ docker compose up --build            # web on :8080, server on :8787
 | `POST` | `/api/catalog/:domain/assess` | assess a discovered app and link the result |
 | `DELETE` | `/api/catalog/:domain` | remove a discovered app |
 | `POST` | `/webhooks/catalog/:source` | `servicenow` \| `okta` \| `netsuite` — HMAC signed |
-| `POST` | `/slack/trust` | `/trust <app>` slash command |
-| `POST` | `/teams/trust` | Teams outgoing webhook / bot |
+| `POST` | `/slack/snout` | `/snout <app>` slash command |
+| `POST` | `/teams/snout` | Teams outgoing webhook / bot |
 
 `/api/*` can be protected with a bearer token by setting `API_TOKEN`.
 
@@ -105,16 +105,16 @@ docker compose up --build            # web on :8080, server on :8787
 ## Integrations
 
 **Inbound catalog** — point ServiceNow Flow, an Okta Workflows job, or a NetSuite
-saved search at `/webhooks/catalog/:source`, signing the body with `TA_WEBHOOK_SECRET`
-(`x-ta-signature: <hex hmac-sha256>`). Each record is normalized and queued for
+saved search at `/webhooks/catalog/:source`, signing the body with `SNOUT_WEBHOOK_SECRET`
+(`x-snout-signature: <hex hmac-sha256>`). Each record is normalized and queued for
 assessment automatically.
 
-**Slack** — create a slash command `/trust`, set its Request URL to `/slack/trust`,
+**Slack** — create a slash command `/snout`, set its Request URL to `/slack/snout`,
 and add `SLACK_SIGNING_SECRET`. The command acks instantly and posts the verdict back
 to the channel when the agent finishes (via Slack's `response_url`).
 
 **Teams** — add an Outgoing Webhook, paste its security token into `TEAMS_SECURITY_TOKEN`,
-and mention `@TrustAgent assess <app>`. Cached apps return instantly; new ones kick off
+and mention `@Snout assess <app>`. Cached apps return instantly; new ones kick off
 in the background. Because Teams outgoing webhooks are synchronous (~5s budget), a true
 async reply needs a Bot Framework bot that stores the conversation reference and posts a
 proactive message — `routes/teams.ts` marks exactly where to slot that in.
@@ -124,7 +124,7 @@ proactive message — `routes/teams.ts` marks exactly where to slot that in.
 **Browser extension (shadow SaaS & auth discovery)** — `extension/` is a Manifest V3
 Chrome extension that watches how you authenticate as you browse and catalogs shadow
 SaaS and shadow auth (local passwords, consumer/social IdP logins, OAuth consent
-grants) — all local-first. Each discovered app has a one-click **Assess in Trust Agent**
+grants) — all local-first. Each discovered app has a one-click **Assess in Snout**
 button that calls `/api/assess`. Load it via `chrome://extensions → Load unpacked`. See
 `extension/README.md`.
 
@@ -173,7 +173,7 @@ To cut a release: bump `extension/manifest.json` to match, add a `## [x.y.z]` ch
 entry, then tag and push:
 
 ```bash
-git tag -a v1.0.0 -m "Trust Agent v1.0.0"
+git tag -a v1.0.0 -m "Snout v1.0.0"
 git push --follow-tags
 ```
 

@@ -16,12 +16,12 @@
       "type": "array",
       "items": { "type": "string" }
     },
-    "trustAgentUrl": {
-      "title": "Trust Agent server URL",
+    "snoutUrl": {
+      "title": "Snout server URL",
       "type": "string"
     },
-    "trustAgentToken": {
-      "title": "Trust Agent API token",
+    "snoutToken": {
+      "title": "Snout API token",
       "type": "string"
     },
     "autoSyncMinutes": {

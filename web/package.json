@@ -1,9 +1,9 @@
 {
-  "name": "trust-agent-web",
+  "name": "snout-web",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Trust Agent web console (Obsidian Command UI).",
+  "description": "Snout web console (Obsidian Command UI).",
   "license": "MIT",
   "scripts": {
     "dev": "vite",

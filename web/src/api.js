@@ -1,4 +1,4 @@
-// Talks to the Trust Agent server. In dev, Vite proxies /api to the server
+// Talks to the Snout server. In dev, Vite proxies /api to the server
 // (see vite.config.js); in prod, set VITE_API_URL or serve behind one origin.
 // When built with VITE_DEMO=true, all calls are served from local seed data
 // (no server, no API key) so the UI can be demoed offline.

@@ -6,7 +6,7 @@ days, **L** 1–2 weeks.
 
 ## Positioning (the wedge we are defending)
 
-Trust Agent is **agentic, transparent, IPSIE-aligned identity-control due diligence for
+Snout is **agentic, transparent, IPSIE-aligned identity-control due diligence for
 the buy/keep decision**, triggered by shadow-auth discovery. We do *not* try to become a
 runtime SSPM (AppOmni, Obsidian, CrowdStrike Falcon Shield own that) or to out-discover a
 SaaS-management platform (Nudge owns email-based discovery breadth). Every item below
@@ -25,7 +25,7 @@ Two hard rules for everything that follows:
 - Assessment agent over the six controls (SSO, lifecycle/SCIM, entitlements,
   CAEP/SSF risk signals, logout/SLO, token revocation/CAE) with web citations + score.
 - Command Center dashboard, assessment catalog & detail (trust hexagon), Discovered view.
-- Integrations: catalog webhooks (ServiceNow/Okta/NetSuite, HMAC), Slack `/trust`, Teams.
+- Integrations: catalog webhooks (ServiceNow/Okta/NetSuite, HMAC), Slack `/snout`, Teams.
 - Browser extension: shadow SaaS + shadow auth capture, Sync, managed config, auto-sync.
 - Security hardening (OWASP LLM + API Top 10), `ENABLE_CATALOG` capability flag.
 

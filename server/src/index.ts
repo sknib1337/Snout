@@ -40,4 +40,4 @@ app.use(notFound);
 app.use(errorHandler);
 
 assertStartup();
-app.listen(config.port, () => console.log(`[trust-agent] server on :${config.port} (${config.env})`));
+app.listen(config.port, () => console.log(`[snout] server on :${config.port} (${config.env})`));

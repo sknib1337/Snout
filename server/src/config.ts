@@ -30,7 +30,7 @@ export const config = {
   bodyLimit: process.env.BODY_LIMIT || "64kb",
 
   // Webhook secrets. Routes that depend on a secret return 501 until it is set.
-  webhookSecret: process.env.TA_WEBHOOK_SECRET || "",
+  webhookSecret: process.env.SNOUT_WEBHOOK_SECRET || "",
   slackSigningSecret: process.env.SLACK_SIGNING_SECRET || "",
   teamsSecurityToken: process.env.TEAMS_SECURITY_TOKEN || "",
 
@@ -44,7 +44,7 @@ export const config = {
 
 export function assertStartup() {
   if (!config.anthropicApiKey) {
-    console.warn("[trust-agent] ANTHROPIC_API_KEY is not set — /api/assess will fail until you add it.");
+    console.warn("[snout] ANTHROPIC_API_KEY is not set — /api/assess will fail until you add it.");
   }
   // Fail closed: no anonymous, unauthenticated API in production.
   if (config.isProd && !config.apiToken && !config.allowAnon) {

@@ -1,6 +1,6 @@
 # Security
 
-Trust Agent runs an LLM that ingests **untrusted user input and untrusted web-search
+Snout runs an LLM that ingests **untrusted user input and untrusted web-search
 results**, and exposes a paid, compute-heavy endpoint. This document records the threat
 model and the controls implemented against it. Controls are mapped to the
 [OWASP Top 10 for LLM Applications (2025)](https://genai.owasp.org/resource/owasp-top-10-for-llm-applications-2025/)
