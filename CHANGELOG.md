@@ -6,10 +6,29 @@ All notable changes to Snout are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+- **Configurable LLM provider** (`server/src/llm/`). `LLM_PROVIDER=anthropic` (default)
+  keeps the Anthropic Messages API with `web_search`; `ANTHROPIC_BASE_URL` lets it run
+  through a proxy / API gateway / internal Anthropic-compatible endpoint. `LLM_PROVIDER=openai`
+  targets any OpenAI-compatible `/v1/chat/completions` endpoint via `LLM_BASE_URL`,
+  `LLM_API_KEY`, `LLM_MODEL` (OpenAI, LiteLLM, OpenRouter, vLLM, Ollama). Existing setups
+  are unchanged — `ANTHROPIC_API_KEY` alone behaves exactly as before. `/health` and
+  `/api/config` now report the effective provider/model.
+
 ### Changed
 - Rebranded the product from "Trust Agent" to **Snout**. Renamed packages, the
   extension, the `/snout` Slack/Teams command, the `SNOUT_WEBHOOK_SECRET` env var, and
   the extension `snoutUrl`/`snoutToken` settings. No functional changes.
+
+### Security
+- Providers without live web search run with **reduced grounding**: Snout deterministically
+  drops citations and downgrades unproven `supported`/`partial` verdicts to `unknown`
+  (recommendation capped at `Hold`), recorded as each assessment's `grounding` mode.
+  `validateAgentOutput()` runs on every provider's output and cannot be bypassed.
+- Operator base URLs (`ANTHROPIC_BASE_URL` / `LLM_BASE_URL`) are trusted config validated
+  for scheme + credentials (`safeBaseUrl()`) and fail closed at startup; `safeUrl()` stays
+  strict (private-host block intact) for untrusted user/citation URLs. Provider error bodies
+  are logged server-side only and never returned to clients; keys/base URLs are never logged.
 
 ## [1.0.0] - 2026-06-20
 
