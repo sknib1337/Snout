@@ -103,6 +103,11 @@ export const config = {
   entraClientId: process.env.ENTRA_CLIENT_ID || "",
   entraClientSecret: process.env.ENTRA_CLIENT_SECRET || "",
   idpPollIntervalMinutes: num(process.env.IDP_POLL_INTERVAL_MINUTES, 0),
+  // Google Workspace Reports API poller (service account + domain-wide delegation).
+  // Off unless all three are set. The PEM may arrive with escaped newlines.
+  googleSaClientEmail: process.env.GOOGLE_SA_CLIENT_EMAIL || "",
+  googleSaPrivateKey: (process.env.GOOGLE_SA_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
+  googleAdminSubject: process.env.GOOGLE_ADMIN_SUBJECT || "", // admin user to impersonate via DWD
 
   // Capability flag: when false, the catalog ingest/discovered routes are not
   // mounted and the dashboard hides the Discovered view (ship with or without
