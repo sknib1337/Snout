@@ -1,64 +1,78 @@
 {
   "vendor": "GitHub",
   "domain": "github.com",
-  "updatedAt": "2026-06-21",
+  "updatedAt": "2026-06-22",
   "controls": {
     "sso": {
       "verdict": "supported",
       "confidence": 0.9,
       "standards": ["SAML 2.0", "OIDC"],
-      "summary": "SAML SSO for Organizations and Enterprise Cloud; OIDC for Enterprise Managed Users. Enterprise-tier feature.",
+      "summary": "SAML SSO for Organizations and Enterprise Cloud; OIDC for Enterprise Managed Users (recommended, supports Conditional Access). Enterprise-tier feature.",
       "citations": [
-        { "title": "GitHub Docs — Identity and access management", "url": "https://docs.github.com" },
+        { "title": "About Enterprise Managed Users — GitHub Docs", "url": "https://docs.github.com/en/enterprise-cloud@latest/admin/concepts/identity-and-access-management/enterprise-managed-users" },
         { "title": "The SSO Wall of Shame", "url": "https://sso.tax/" }
       ],
       "source": "human",
-      "verifiedBy": "seed-maintainer",
-      "verifiedAt": "2026-06-21"
+      "verifiedBy": "snout-curated",
+      "verifiedAt": "2026-06-22"
     },
     "ulm": {
       "verdict": "supported",
-      "confidence": 0.85,
+      "confidence": 0.9,
       "standards": ["SCIM 2.0"],
-      "summary": "SCIM provisioning/deprovisioning for Enterprise Managed Users and SAML-enabled orgs.",
-      "citations": [{ "title": "GitHub Docs — SCIM", "url": "https://docs.github.com" }],
+      "summary": "SCIM provisioning/deprovisioning for Enterprise Managed Users and SAML-enabled orgs via the IdP.",
+      "citations": [
+        { "title": "Configuring SCIM provisioning for Enterprise Managed Users — GitHub Docs", "url": "https://docs.github.com/en/enterprise-cloud@latest/admin/managing-iam/provisioning-user-accounts-with-scim/configuring-scim-provisioning-for-users" }
+      ],
       "source": "human",
-      "verifiedBy": "seed-maintainer",
-      "verifiedAt": "2026-06-21"
+      "verifiedBy": "snout-curated",
+      "verifiedAt": "2026-06-22"
     },
     "entitlements": {
       "verdict": "partial",
       "confidence": 0.6,
       "standards": ["SCIM groups", "Team sync"],
-      "summary": "Team/role sync via IdP groups (Team synchronization) on Enterprise; granular repo entitlements managed in-product.",
-      "citations": [{ "title": "GitHub Docs", "url": "https://docs.github.com" }],
-      "source": "seed"
+      "summary": "Team membership syncs from IdP groups via a daily reconciliation job (Enterprise); fine-grained repository permissions are managed in-product, not via the IdP.",
+      "citations": [
+        { "title": "Managing team memberships with IdP groups — GitHub Docs", "url": "https://docs.github.com/en/enterprise-cloud@latest/admin/managing-iam/provisioning-user-accounts-with-scim/managing-team-memberships-with-identity-provider-groups" }
+      ],
+      "source": "human",
+      "verifiedBy": "snout-curated",
+      "verifiedAt": "2026-06-22"
     },
     "riskSignals": {
       "verdict": "unknown",
       "confidence": 0.4,
       "standards": [],
-      "summary": "No documented CAEP/Shared Signals transmitter or receiver.",
+      "summary": "No documented CAEP / Shared Signals transmitter or receiver as of 2026-06. OIDC EMU supports IdP Conditional Access, but that is an IdP control, not a Shared Signals integration.",
       "citations": [],
-      "source": "seed"
+      "source": "human",
+      "verifiedBy": "snout-curated",
+      "verifiedAt": "2026-06-22"
     },
     "logout": {
       "verdict": "partial",
       "confidence": 0.5,
       "standards": ["Session management"],
-      "summary": "SSO session revocation and forced re-auth on Enterprise; no documented back-channel SLO.",
-      "citations": [{ "title": "GitHub Docs", "url": "https://docs.github.com" }],
-      "source": "seed"
+      "summary": "SSO session revocation and forced re-auth on Enterprise; OIDC EMU integrates with IdP Conditional Access. No documented back-channel Single Logout.",
+      "citations": [
+        { "title": "About Enterprise Managed Users — GitHub Docs", "url": "https://docs.github.com/en/enterprise-cloud@latest/admin/concepts/identity-and-access-management/enterprise-managed-users" }
+      ],
+      "source": "human",
+      "verifiedBy": "snout-curated",
+      "verifiedAt": "2026-06-22"
     },
     "tokenRevocation": {
       "verdict": "supported",
       "confidence": 0.85,
       "standards": ["OAuth 2.0"],
-      "summary": "OAuth app token revocation API and PAT/token management; secret-scanning revokes leaked tokens.",
-      "citations": [{ "title": "GitHub REST API — OAuth authorizations", "url": "https://docs.github.com" }],
+      "summary": "OAuth app token revocation via the REST API and PAT/token management; secret scanning can auto-revoke leaked tokens.",
+      "citations": [
+        { "title": "OAuth applications REST API — GitHub Docs", "url": "https://docs.github.com/en/rest/apps/oauth-applications" }
+      ],
       "source": "human",
-      "verifiedBy": "seed-maintainer",
-      "verifiedAt": "2026-06-21"
+      "verifiedBy": "snout-curated",
+      "verifiedAt": "2026-06-22"
     }
   }
 }
