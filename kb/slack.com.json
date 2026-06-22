@@ -1,0 +1,62 @@
+{
+  "vendor": "Slack",
+  "domain": "slack.com",
+  "updatedAt": "2026-06-21",
+  "controls": {
+    "sso": {
+      "verdict": "supported",
+      "confidence": 0.9,
+      "standards": ["SAML 2.0", "OIDC"],
+      "summary": "SAML 2.0 SSO on Business+ and Enterprise Grid; OIDC via supported IdPs. SSO is gated to paid/enterprise tiers ('SSO tax').",
+      "citations": [
+        { "title": "The SSO Wall of Shame", "url": "https://sso.tax/" },
+        { "title": "Slack Help Center", "url": "https://slack.com/help" }
+      ],
+      "source": "human",
+      "verifiedBy": "seed-maintainer",
+      "verifiedAt": "2026-06-21"
+    },
+    "ulm": {
+      "verdict": "supported",
+      "confidence": 0.85,
+      "standards": ["SCIM 2.0"],
+      "summary": "SCIM 2.0 user provisioning and deprovisioning on Business+ / Enterprise Grid.",
+      "citations": [{ "title": "Slack Help Center", "url": "https://slack.com/help" }],
+      "source": "human",
+      "verifiedBy": "seed-maintainer",
+      "verifiedAt": "2026-06-21"
+    },
+    "entitlements": {
+      "verdict": "partial",
+      "confidence": 0.6,
+      "standards": ["SCIM groups"],
+      "summary": "SCIM group push and role mapping available on Enterprise Grid; limited fine-grained entitlements.",
+      "citations": [{ "title": "Slack Help Center", "url": "https://slack.com/help" }],
+      "source": "seed"
+    },
+    "riskSignals": {
+      "verdict": "unsupported",
+      "confidence": 0.5,
+      "standards": [],
+      "summary": "No public CAEP/SSF transmitter or receiver documented.",
+      "citations": [],
+      "source": "seed"
+    },
+    "logout": {
+      "verdict": "partial",
+      "confidence": 0.5,
+      "standards": ["RP-initiated logout"],
+      "summary": "Session management and forced sign-out via admin/SSO; Single Logout support is limited.",
+      "citations": [{ "title": "Slack Help Center", "url": "https://slack.com/help" }],
+      "source": "seed"
+    },
+    "tokenRevocation": {
+      "verdict": "supported",
+      "confidence": 0.8,
+      "standards": ["OAuth 2.0"],
+      "summary": "OAuth token revocation via auth.revoke and app management; admins can revoke sessions and tokens.",
+      "citations": [{ "title": "Slack API", "url": "https://api.slack.com/" }],
+      "source": "seed"
+    }
+  }
+}

@@ -5,12 +5,17 @@ import morgan from "morgan";
 import { config, assertStartup } from "./config";
 import { assessments } from "./routes/assessments";
 import { catalog } from "./routes/catalog";
+import { kb } from "./routes/kb";
+import { alerts } from "./routes/alerts";
 import { webhooks } from "./routes/webhooks";
 import { slack } from "./routes/slack";
 import { teams } from "./routes/teams";
-import { apiAuth } from "./security/auth";
+import { auth } from "./routes/auth";
+import { apiAuth, withTenant, writeGuard, auditMiddleware } from "./security/auth";
 import { apiLimiter, webhookLimiter } from "./security/limits";
 import { requestId, notFound, errorHandler } from "./security/errors";
+import { startReassessmentLoop } from "./scheduler";
+import { startPollers } from "./pollers";
 
 const app = express();
 
@@ -33,11 +38,13 @@ app.get("/health", (_req, res) =>
     ok: true,
     provider: config.llmProvider,
     model: config.llmProvider === "anthropic" ? config.anthropicModel : config.llmModel,
+    store: config.databaseUrl ? "postgres" : "json",
   }),
 );
 
-const apiRouters = config.enableCatalog ? [assessments, catalog] : [assessments];
-app.use("/api", apiLimiter, apiAuth, ...apiRouters);
+const apiRouters = config.enableCatalog ? [assessments, catalog, kb, alerts] : [assessments, kb, alerts];
+app.use("/api", apiLimiter, apiAuth, withTenant, writeGuard, auditMiddleware, ...apiRouters);
+app.use("/auth", apiLimiter, auth);
 app.use("/webhooks", webhookLimiter, webhooks);
 app.use("/slack", webhookLimiter, slack);
 app.use("/teams", webhookLimiter, teams);
@@ -46,4 +53,8 @@ app.use(notFound);
 app.use(errorHandler);
 
 assertStartup();
-app.listen(config.port, () => console.log(`[snout] server on :${config.port} (${config.env})`));
+app.listen(config.port, () =>
+  console.log(`[snout] server on :${config.port} (${config.env}) store=${config.databaseUrl ? "postgres" : "json"}`),
+);
+startReassessmentLoop();
+startPollers();

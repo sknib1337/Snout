@@ -1,0 +1,13 @@
+{
+  "vendor": "Salesforce",
+  "domain": "salesforce.com",
+  "updatedAt": "2026-06-21",
+  "controls": {
+    "sso": { "verdict": "supported", "confidence": 0.85, "standards": ["SAML 2.0", "OIDC"], "summary": "SAML 2.0 and OpenID Connect SSO; can act as SP and IdP.", "citations": [{ "title": "Salesforce Help", "url": "https://help.salesforce.com" }, { "title": "The SSO Wall of Shame", "url": "https://sso.tax/" }], "source": "human", "verifiedBy": "seed-maintainer", "verifiedAt": "2026-06-21" },
+    "ulm": { "verdict": "supported", "confidence": 0.75, "standards": ["SCIM 2.0"], "summary": "SCIM provisioning via Identity / connected IdPs.", "citations": [{ "title": "Salesforce Help", "url": "https://help.salesforce.com" }], "source": "seed" },
+    "entitlements": { "verdict": "partial", "confidence": 0.5, "standards": ["SCIM groups", "RBAC"], "summary": "Profiles/permission sets are rich but mapping from IdP groups is coarse.", "citations": [{ "title": "Salesforce Help", "url": "https://help.salesforce.com" }], "source": "seed" },
+    "riskSignals": { "verdict": "unknown", "confidence": 0.35, "standards": [], "summary": "Event Monitoring exists but no documented CAEP/Shared Signals standard support.", "citations": [{ "title": "Salesforce Help", "url": "https://help.salesforce.com" }], "source": "seed" },
+    "logout": { "verdict": "partial", "confidence": 0.45, "standards": ["Session management"], "summary": "Session management and SSO logout; back-channel SLO varies by config.", "citations": [{ "title": "Salesforce Help", "url": "https://help.salesforce.com" }], "source": "seed" },
+    "tokenRevocation": { "verdict": "supported", "confidence": 0.7, "standards": ["OAuth 2.0"], "summary": "OAuth 2.0 token revocation endpoint; connected-app session/token management.", "citations": [{ "title": "Salesforce Help", "url": "https://help.salesforce.com" }], "source": "seed" }
+  }
+}

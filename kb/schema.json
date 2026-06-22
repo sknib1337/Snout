@@ -1,0 +1,51 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/sknib1337/Snout/kb/schema.json",
+  "title": "Snout vendor knowledge-base file",
+  "description": "One vendor's IPSIE-aligned control facts. File name should be <domain>.json.",
+  "type": "object",
+  "required": ["vendor", "domain", "controls"],
+  "additionalProperties": false,
+  "properties": {
+    "vendor": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "domain": { "type": "string", "pattern": "^([a-z0-9-]{1,63}\\.)+[a-z]{2,}$" },
+    "updatedAt": { "type": "string" },
+    "controls": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sso": { "$ref": "#/$defs/fact" },
+        "ulm": { "$ref": "#/$defs/fact" },
+        "entitlements": { "$ref": "#/$defs/fact" },
+        "riskSignals": { "$ref": "#/$defs/fact" },
+        "logout": { "$ref": "#/$defs/fact" },
+        "tokenRevocation": { "$ref": "#/$defs/fact" }
+      }
+    }
+  },
+  "$defs": {
+    "fact": {
+      "type": "object",
+      "required": ["verdict", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "verdict": { "enum": ["supported", "partial", "unsupported", "unknown"] },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "standards": { "type": "array", "items": { "type": "string" }, "maxItems": 8 },
+        "summary": { "type": "string", "maxLength": 600 },
+        "citations": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": { "title": { "type": "string" }, "url": { "type": "string", "format": "uri" } }
+          }
+        },
+        "source": { "enum": ["human", "agent", "seed"] },
+        "verifiedBy": { "type": "string" },
+        "verifiedAt": { "type": "string" }
+      }
+    }
+  }
+}

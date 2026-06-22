@@ -1,0 +1,55 @@
+{
+  "vendor": "Zoom",
+  "domain": "zoom.us",
+  "updatedAt": "2026-06-21",
+  "controls": {
+    "sso": {
+      "verdict": "supported",
+      "confidence": 0.8,
+      "standards": ["SAML 2.0", "OIDC"],
+      "summary": "SAML 2.0 SSO and OIDC supported for Business/Enterprise accounts.",
+      "citations": [{ "title": "Zoom Support", "url": "https://support.zoom.us" }, { "title": "The SSO Wall of Shame", "url": "https://sso.tax/" }],
+      "source": "seed"
+    },
+    "ulm": {
+      "verdict": "supported",
+      "confidence": 0.7,
+      "standards": ["SCIM 2.0"],
+      "summary": "SCIM 2.0 provisioning supported via major IdPs.",
+      "citations": [{ "title": "Zoom Support", "url": "https://support.zoom.us" }],
+      "source": "seed"
+    },
+    "entitlements": {
+      "verdict": "partial",
+      "confidence": 0.5,
+      "standards": ["SCIM groups"],
+      "summary": "Group and role mapping via SCIM/SAML attributes; coarse-grained.",
+      "citations": [{ "title": "Zoom Support", "url": "https://support.zoom.us" }],
+      "source": "seed"
+    },
+    "riskSignals": {
+      "verdict": "unknown",
+      "confidence": 0.4,
+      "standards": [],
+      "summary": "No documented CAEP/SSF support.",
+      "citations": [],
+      "source": "seed"
+    },
+    "logout": {
+      "verdict": "partial",
+      "confidence": 0.4,
+      "standards": ["Session management"],
+      "summary": "Admin-forced sign-out and session controls; SLO support limited.",
+      "citations": [{ "title": "Zoom Support", "url": "https://support.zoom.us" }],
+      "source": "seed"
+    },
+    "tokenRevocation": {
+      "verdict": "partial",
+      "confidence": 0.4,
+      "standards": ["OAuth 2.0"],
+      "summary": "OAuth app management and token revocation for Marketplace apps.",
+      "citations": [{ "title": "Zoom Support", "url": "https://support.zoom.us" }],
+      "source": "seed"
+    }
+  }
+}

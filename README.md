@@ -1,26 +1,46 @@
 # Snout
 
-Agent-driven due diligence for the **critical enterprise SaaS controls** every app
-must support before it touches your identity fabric. Name a SaaS tool and the agent
-researches the live web — vendor docs, trust centers, the OpenID Foundation — then
-scores six controls with citations and drafts a governance verdict your sourcing,
-finance, third-party risk, security architecture, and IT engineering teams can all
-trust. It exists to replace the slow, committee-driven (RAPID) review with something
-fast and evidence-backed.
+**Open, transparent, IPSIE-aligned identity-trust scoring for SaaS vendors.** Name a SaaS
+tool and the agent researches the live web — vendor docs, trust centers, the OpenID
+Foundation — then scores six **IPSIE-aligned identity controls** with citations and drafts a
+governance verdict your sourcing, finance, third-party risk, security architecture, and IT
+engineering teams can all trust. It exists to replace the slow, committee-driven (RAPID)
+review with something fast and evidence-backed.
 
-The six controls:
+The six controls map to the control areas of the OpenID Foundation's **IPSIE**
+(Interoperability Profile for Secure Identity in the Enterprise) — the emerging standard for
+how SaaS must interoperate with the enterprise identity fabric — each anchored to a concrete
+open standard:
 
-| Control | Standard(s) |
-|---|---|
-| Single Sign-On | SAML 2.0 / OIDC |
-| User Lifecycle | SCIM 2.0 (provision + deprovision) |
-| Entitlements | SCIM groups / RBAC |
-| Risk Signal Sharing | CAEP / Shared Signals Framework |
-| Logout | RP-initiated / Single Logout |
-| Token Revocation | OAuth 2.0 revocation / CAE |
+| Control | Standard(s) | IPSIE area |
+|---|---|---|
+| Single Sign-On | SAML 2.0 / OIDC | Federated authentication |
+| User Lifecycle | SCIM 2.0 (provision + deprovision) | Lifecycle management |
+| Entitlements | SCIM groups / RBAC | Authorization & entitlements |
+| Risk Signal Sharing | CAEP / Shared Signals Framework | Continuous access evaluation |
+| Logout | RP-initiated / Single Logout | Session management |
+| Token Revocation | OAuth 2.0 revocation / CAE | Credential & token management |
 
 The **trust score** is a transparent mean of the six control weights
-(Supported 100 · Partial 55 · Unverified 25 · Not found 8) — auditable, not a black box.
+(Supported 100 · Partial 55 · Unverified 25 · Not found 8) — auditable, not a black box. The
+full scoring spec is public in **[METHODOLOGY.md](./METHODOLOGY.md)**.
+
+> _Alignment, not certification: Snout maps a vendor's posture to IPSIE-aligned control areas
+> from public evidence; it does not assert IPSIE conformance on a vendor's behalf._
+
+## Scope — what Snout is, and isn't
+
+Snout owns one job and does it transparently: **open, evidence-cited vetting of a SaaS
+vendor's IPSIE-aligned identity controls, for the buy/keep decision.**
+
+- ✅ **It is** a discovery and assessment tool — it *sees and reports* identity-control
+  posture with citations, and produces a governance verdict a human signs off on.
+- ❌ **It is not** an inline enforcer. Snout does not block sign-ins, sit in the browser
+  request path, or terminate sessions. It **complements your ITDR / SSPM and your IdP** —
+  it reports the posture gap; enforcement is handed off to those systems.
+
+This boundary is deliberate: an open-source tool that *reports and vets transparently* is a
+better fit for the buy/keep decision than one that tries to enforce inline.
 
 ---
 
@@ -96,11 +116,24 @@ docker compose up --build            # web on :8080, server on :8787
 | `POST` | `/api/catalog` | bulk-ingest discovered apps `{ apps: [...] }` (used by the extension's Sync) |
 | `POST` | `/api/catalog/:domain/assess` | assess a discovered app and link the result |
 | `DELETE` | `/api/catalog/:domain` | remove a discovered app |
+| `GET`  | `/api/catalog/export` | discovered apps + posture findings/risk score (SIEM/BI export) |
+| `GET`  | `/api/kb` | all KB vendors (repo files + overrides) — powers the verification queue |
+| `GET`  | `/api/kb/:key` | merged knowledge-base facts (repo file + overrides) for a vendor |
+| `POST` | `/api/kb/:key/:control` | human verify/override one control fact (`source: human`) |
+| `GET`  | `/api/alerts` | monitoring alerts (breach/CVE feed + control regressions) |
+| `DELETE` | `/api/alerts/:id` | dismiss an alert |
+| `GET`  | `/api/audit` | audit log of mutating calls (**admin only**) |
 | `POST` | `/webhooks/catalog/:source` | `servicenow` \| `okta` \| `netsuite` — HMAC signed |
+| `POST` | `/webhooks/idp/:source` | `okta` \| `entra` \| `google` sign-in/audit logs → discovered (HMAC) |
+| `POST` | `/webhooks/email` | forwarded signup/account email metadata → discovered (HMAC) |
+| `POST` | `/webhooks/breach` | SaaS breach/CVE feed → monitoring alerts (HMAC) |
 | `POST` | `/slack/snout` | `/snout <app>` slash command |
 | `POST` | `/teams/snout` | Teams outgoing webhook / bot |
 
-`/api/*` can be protected with a bearer token by setting `API_TOKEN`.
+`/api/*` can be protected with a bearer token by setting `API_TOKEN`. Alternatively, enable
+**OIDC login** (`OIDC_ISSUER` + client id/secret + `OIDC_REDIRECT_URI` + `SESSION_SECRET`) so
+users sign in via your IdP and a signed session cookie authorizes the dashboard; bearer tokens
+keep working for API/CI clients. See `/auth/login`, `/auth/callback`, `/auth/logout`, `/auth/me`.
 
 ---
 
@@ -110,6 +143,32 @@ docker compose up --build            # web on :8080, server on :8787
 saved search at `/webhooks/catalog/:source`, signing the body with `SNOUT_WEBHOOK_SECRET`
 (`x-snout-signature: <hex hmac-sha256>`). Each record is normalized and queued for
 assessment automatically.
+
+**Discovery sensors (IdP logs & email)** — inventory apps + auth methods *without* the
+browser extension by forwarding your own telemetry to HMAC-signed endpoints (same
+`SNOUT_WEBHOOK_SECRET` / `x-snout-signature` scheme):
+
+- **IdP sign-in logs** → `POST /webhooks/idp/:source` where `:source` is `okta` | `entra` |
+  `google`. Point an Okta System Log export, a Microsoft Graph `auditLogs/signIns` job, or a
+  Google Workspace Reports pull at it (or route them via your SIEM). Snout maps each event to a
+  discovered app — auth method (SSO/OAuth), IdP, OAuth client + scopes — deduped by domain.
+  Events without a resolvable app domain are skipped and counted (add a `domain` field in your
+  forwarder to capture those).
+- **Signup / account emails** → `POST /webhooks/email` with `{ messages: [{ from, subject, date }] }`.
+  Snout records the *sender's* domain as a discovered app when the mail looks like a
+  signup/account notice; personal mailboxes and newsletters are ignored.
+
+**Pull-pollers (zero-touch)** — instead of pushing, Snout can *pull* sign-in logs on a schedule.
+Set `IDP_POLL_INTERVAL_MINUTES` plus `OKTA_LOG_URL` + `OKTA_API_TOKEN` (Okta System Log),
+`ENTRA_TENANT_ID`/`ENTRA_CLIENT_ID`/`ENTRA_CLIENT_SECRET` (Microsoft Graph), and/or
+`GOOGLE_SA_CLIENT_EMAIL`/`GOOGLE_SA_PRIVATE_KEY`/`GOOGLE_ADMIN_SUBJECT` (Google Admin SDK Reports,
+read-only, via a locally-signed service-account JWT). Off by default; outbound calls go only to
+your IdP's hosts, and credentials live in env and are never logged.
+
+All sensors (extension, IdP logs, email) **merge by domain** into one discovered record with a
+capped per-app history (`events`), surfaced in the dashboard's **Discovered** view. Discovery is
+push-only — Snout stores no IdP/mailbox credentials and makes no outbound calls to ingest. These
+routes require `ENABLE_CATALOG` (on by default).
 
 **Slack** — create a slash command `/snout`, set its Request URL to `/slack/snout`,
 and add `SLACK_SIGNING_SECRET`. The command acks instantly and posts the verdict back
@@ -166,10 +225,16 @@ SSRF private-host block that applies to untrusted user/citation URLs. See **[SEC
 
 ## Persistence
 
-Default is a single JSON file under `DATA_DIR` — zero setup, fine for small teams. For
-production, implement the `Store` interface in `server/src/store.ts` against Postgres
-(one `assessments` table, JSONB `data`, unique `lower(app)` index for upsert) and swap
-the export; nothing else changes.
+Default is JSON files under `DATA_DIR` (`assessments`, `discovered`, `kb`, `alerts`, `audit`) —
+zero setup, single-tenant, fine for small teams. Set **`DATABASE_URL`** to switch to the built-in
+**Postgres store** (`server/src/store.pg.ts`): a table per collection with JSONB `data` and
+tenant-scoped keys, schema auto-created on first use (`server/db/schema.sql` is the reference).
+
+The Postgres store also provides **per-tenant data isolation**: every row carries a `tenant`
+column and **every query is scoped `WHERE tenant = $1`**, so one tenant can never read or write
+another's data. The request tenant is resolved by `withTenant` (via `AsyncLocalStorage`) from the
+bearer client's `x-tenant` header or an OIDC user's session claim. The JSON store ignores tenant
+(single-tenant).
 
 ## Demo
 
@@ -196,15 +261,77 @@ This app runs an LLM over untrusted web content and exposes a compute-heavy endp
 
 Full threat model, control mapping, and a deployment hardening checklist are in **[SECURITY.md](./SECURITY.md)**. Verdicts are evidence-backed research, not sign-off — a human approves.
 
+## Knowledge base & measured accuracy
+
+Snout keeps an **open, verified knowledge base** of IPSIE-control support per vendor under
+[`kb/`](./kb/) — one JSON file per vendor, community-contributable via PR (see
+[kb/README.md](./kb/README.md)). This is what makes assessments *compound*:
+
+- The agent **reads human-verified KB facts first** (injected as trusted, structured priors —
+  never as free-text instructions) and researches only the gaps, returning a per-control
+  **confidence**. Verified facts are authoritative and reused across every future assessment.
+- Each control carries **provenance** (`kb-verified` · `agent` · `kb-proposed`). Reviewers
+  verify or override a control from the dashboard or `POST /api/kb/:key/:control`; agent
+  findings are stored as unverified *proposals* so the KB grows over time.
+- Accuracy is **measured, not asserted**: a labeled benchmark + eval harness report per-control
+  and overall accuracy (precision/recall, confusion, calibration).
+- The KB **compounds**: `npm run seed:kb` batch-runs the agent over a vendor list to generate
+  unverified proposals at scale; the dashboard **Knowledge** view is a verification queue where a
+  human promotes proposals to verified (and flags facts older than 180 days as stale).
+
+```bash
+cd server
+npm run kb:validate     # validate every kb/<domain>.json against the schema
+npm run eval            # KB-only accuracy vs the benchmark → writes kb/EVAL.md
+npm run eval -- --live  # optional: run the real agent instead of KB-only (uses your provider)
+npm run seed:kb         # batch-generate KB proposals from scripts/seed-vendors.json (live; needs a key)
+```
+
+Current measured numbers live in [kb/EVAL.md](./kb/EVAL.md). The scoring itself stays the
+transparent mean documented in [METHODOLOGY.md](./METHODOLOGY.md).
+
+## Assessment correctness (optional)
+
+Two off-by-default passes deepen single-assessment trustworthiness (each adds latency/cost on
+the web-search path):
+
+- **`VERIFY_FINDINGS=true`** — an adversarial **refutation pass**: a second LLM call tries to
+  refute each verdict, and Snout *deterministically* demotes anything it can't defend to
+  `unknown` (capping the recommendation). Human-verified KB facts are never demoted.
+- **`CHECK_CITATIONS=true`** — fetches each cited page (SSRF-guarded: `safeUrl()` public-only +
+  `redirect: manual` + timeout + size cap) and **drops citations that don't actually mention the
+  control/standard**. Unfetchable pages are kept (no false drops).
+
+## Posture, monitoring & governance
+
+- **Auth-posture findings** — every discovered app is scored for identity risk (no corporate
+  SSO, local-password login, consumer IdP, broad/long-lived OAuth scopes) with a risk score and
+  badges in the Discovered view; `GET /api/catalog/export` emits the same as a flat feed for
+  SIEM/BI. These are *findings*, not inline enforcement (see **Scope**).
+- **Continuous monitoring** — forward a SaaS breach/CVE feed to `POST /webhooks/breach`, and
+  re-assessments raise an **alert on any control regression** (e.g. `sso` drops from
+  `supported`). Alerts surface in the dashboard and at `GET /api/alerts`. Set
+  `REASSESS_INTERVAL_HOURS` to run re-assessments on a schedule (stale apps re-checked
+  automatically, firing change alerts).
+- **OAuth scope risk is tiered** — write/admin scopes flag **high**, broad read access
+  **medium**, long-lived (offline) tokens **low**. Multi-sensor discovery now also dedupes on
+  the **registrable domain** (eTLD+1), so `saml.acme.com` and `app.acme.com` collapse to `acme.com`.
+- **Roles & audit** — the admin `API_TOKEN` can do everything; an optional read-only
+  `API_VIEWER_TOKEN` can `GET` but not mutate. Every mutating call is written to an **audit log**
+  (`GET /api/audit`, admin only) tagged with role and tenant. **Per-tenant data isolation** is
+  enforced by the Postgres store (`DATABASE_URL`): every query is scoped to the request's tenant
+  (see Persistence).
+- **OIDC dashboard login** — optional IdP sign-in (Authorization Code + PKCE) with a signed,
+  httpOnly session cookie; role/tenant derived from claims. Bearer auth still works alongside it.
+
 ## Tests
 
 ```bash
-npm test            # server: scoring + HMAC (vitest)
+npm test            # server: scoring + HMAC + discovery + KB/eval + posture + RBAC + Postgres isolation + OIDC + pollers (vitest)
 ```
 
 ## Roadmap ideas
 
-- Postgres store + audit log of who approved what
 - Spend signal join (NetSuite/Productiv) to flag shadow-IT you pay for but haven't assessed
 - Settings: default reviewers, score thresholds, secret rotation
 - Bot Framework Teams bot for true async replies

@@ -4,6 +4,7 @@ import { store } from "../store";
 import { assessApp } from "../agent";
 import { sanitizeField } from "../security/sanitize";
 import { assessLimiter, assessSlots } from "../security/limits";
+import { posture } from "../posture";
 
 export const catalog = Router();
 
@@ -59,11 +60,28 @@ catalog.get("/catalog", async (_req, res, next) => {
   try {
     const apps = await store.listDiscovered();
     const out = await Promise.all(apps.map(async (a) => {
-      if (!a.assessmentId) return a;
+      const enriched: any = { ...a, posture: posture(a) };
+      if (!a.assessmentId) return enriched;
       const assessment = await store.get(a.assessmentId);
-      return assessment ? { ...a, assessment: { id: assessment.id, score: assessment.score, recommendation: assessment.recommendation } } : a;
+      return assessment ? { ...enriched, assessment: { id: assessment.id, score: assessment.score, recommendation: assessment.recommendation } } : enriched;
     }));
     res.json(out);
+  } catch (e) { next(e); }
+});
+
+// GET /api/catalog/export — discovered apps + posture as a flat array for SIEM/BI
+// ingest (one record per app, posture findings + risk score inlined).
+catalog.get("/catalog/export", async (_req, res, next) => {
+  try {
+    const apps = await store.listDiscovered();
+    res.json(apps.map((a) => {
+      const p = posture(a);
+      return {
+        domain: a.domain, name: a.name, sources: a.sources, methods: a.methods,
+        idps: a.idps, firstSeen: a.firstSeen, lastSeen: a.lastSeen,
+        riskScore: p.riskScore, findings: p.findings, assessmentId: a.assessmentId,
+      };
+    }));
   } catch (e) { next(e); }
 });
 

@@ -23,6 +23,66 @@ export interface ControlFinding {
   standards: string[];
   summary: string;
   citations: { title: string; url: string }[];
+  // Per-control confidence (0..1) and where the finding came from. Optional so
+  // assessments stored before the knowledge base existed remain valid.
+  confidence?: number;
+  source?: "kb-verified" | "agent" | "kb-proposed";
+}
+
+// --- Knowledge base (EPIC-MOAT) -------------------------------------------
+// An open, per-vendor, per-control record of IPSIE-control support that is
+// reused across assessments. Seed facts live in repo files under kb/; human
+// verifications/overrides are persisted by the Store. Only human-verified facts
+// are injected into the agent as trusted priors.
+export type FactSource = "human" | "agent" | "seed";
+
+export interface ControlFact {
+  verdict: Verdict;
+  confidence: number; // 0..1
+  standards: string[];
+  summary: string;
+  citations: { title: string; url: string }[];
+  source: FactSource;
+  verifiedBy?: string;
+  verifiedAt?: string;
+}
+
+export interface KbVendor {
+  vendor: string;
+  domain: string;
+  updatedAt: string;
+  controls: Partial<Record<ControlKey, ControlFact>>;
+}
+
+// --- Continuous monitoring (EPIC-OPERATE) ---------------------------------
+// An alert raised by a sensor: a breach/CVE feed item, or a detected control
+// regression on re-assessment.
+export interface Alert {
+  id: string;
+  kind: "breach" | "cve" | "change";
+  severity: "high" | "medium" | "low";
+  vendor: string;
+  domain?: string;
+  title: string;
+  detail?: string;
+  url?: string;
+  ts: number;
+}
+
+// One control verdict that changed between consecutive assessments of an app.
+export interface AssessmentChange { control: ControlKey; from: Verdict; to: Verdict; }
+
+// --- Audit log (EPIC-ENTERPRISE) ------------------------------------------
+// A record of every mutating API call: who (role), which tenant, what, outcome.
+export interface AuditEntry {
+  id: string;
+  ts: number;
+  requestId?: string;
+  role: string;
+  tenant: string;
+  method: string;
+  path: string;
+  status?: number;
 }
 
 export interface Assessment {
@@ -50,6 +110,10 @@ export interface Assessment {
   // search, "reduced" when it ran without search (verdicts are not citation-backed).
   // Optional so assessments stored before this field remain valid.
   grounding?: "web_search" | "reduced";
+  // Resolved knowledge-base key (domain or vendor slug) for verify/override reuse.
+  kbKey?: string;
+  // Control verdicts that changed vs the previous assessment of this app (EPIC-OPERATE).
+  changes?: AssessmentChange[];
 }
 
 export function computeScore(capabilities: Partial<Record<ControlKey, ControlFinding>>): number {
@@ -63,7 +127,17 @@ export function readiness(score: number): "Controls Ready" | "Partial" | "Not Re
   return "Not Ready";
 }
 
-// Apps discovered in the wild (e.g., by the browser extension) before assessment.
+// One append-only discovery observation, so the inventory shows *how* and *when*
+// each app/auth signal was seen (which sensor, what it observed). Capped per app.
+export interface DiscoveredEvent {
+  ts: number;
+  source: string; // sensor: "extension" | "okta-log" | "entra-log" | "google-log" | "email" | ...
+  kind: string;   // "sso" | "oauth" | "signin" | "login" | "signup" | ...
+  detail?: string;
+}
+
+// Apps discovered in the wild (browser extension, IdP sign-in logs, signup emails)
+// before assessment. Keyed by domain; sensors are deduped/merged into one record.
 export interface DiscoveredApp {
   domain: string;
   name: string;
@@ -73,6 +147,7 @@ export interface DiscoveredApp {
   sources: string[];
   firstSeen: number;
   lastSeen: number;
+  events?: DiscoveredEvent[]; // discovery history (optional; older records have none)
   assessmentId?: string;
 }
 
