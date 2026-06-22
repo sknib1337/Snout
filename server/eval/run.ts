@@ -11,7 +11,7 @@
 import fs from "fs";
 import path from "path";
 import { CONTROLS, ControlKey, Verdict } from "../src/controls";
-import { getFacts } from "../src/kb";
+import { getFacts, getVerifiedFacts } from "../src/kb";
 
 const CONTROL_KEYS = CONTROLS.map((c) => c.key) as ControlKey[];
 const VERDICTS: Verdict[] = ["supported", "partial", "unsupported", "unknown"];
@@ -124,9 +124,20 @@ export function makeLivePredict(useKb: boolean): Predict {
   };
 }
 
-// KB-only predictor: deterministic, no network. Returns verdict + confidence.
+// KB-only predictor: deterministic, no network. Uses all merged facts (human +
+// seed + agent). Returns verdict + confidence.
 export const kbPredict: Predict = async (domain) => {
   const { controls } = await getFacts(domain);
+  const out: Partial<Record<ControlKey, Prediction>> = {};
+  for (const k of CONTROL_KEYS) out[k] = { verdict: controls[k]?.verdict ?? "unknown", confidence: controls[k]?.confidence };
+  return out;
+};
+
+// KB verified-only predictor: uses ONLY human-verified facts. Comparing this with
+// kbPredict (which also trusts seed/agent facts) shows whether human verification
+// actually improves quality, or whether unverified facts are carrying the number.
+export const kbVerifiedPredict: Predict = async (domain) => {
+  const controls = await getVerifiedFacts(domain);
   const out: Partial<Record<ControlKey, Prediction>> = {};
   for (const k of CONTROL_KEYS) out[k] = { verdict: controls[k]?.verdict ?? "unknown", confidence: controls[k]?.confidence };
   return out;
@@ -228,6 +239,7 @@ async function main() {
   const runs: { name: string; predict: Predict; headline?: boolean }[] = [];
   if (baseline) runs.push({ name: "naive (always-unknown)", predict: naivePredict });
   runs.push({ name: "KB-only (deterministic)", predict: kbPredict, headline: !live });
+  if (baseline) runs.push({ name: "KB-verified-only (human facts)", predict: kbVerifiedPredict });
   if (live) {
     if (baseline) runs.push({ name: "no-KB LLM", predict: makeLivePredict(false) });
     runs.push({ name: "KB-augmented LLM", predict: makeLivePredict(true), headline: true });
