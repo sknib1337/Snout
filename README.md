@@ -130,7 +130,10 @@ docker compose up --build            # web on :8080, server on :8787
 | `POST` | `/slack/snout` | `/snout <app>` slash command |
 | `POST` | `/teams/snout` | Teams outgoing webhook / bot |
 
-`/api/*` can be protected with a bearer token by setting `API_TOKEN`.
+`/api/*` can be protected with a bearer token by setting `API_TOKEN`. Alternatively, enable
+**OIDC login** (`OIDC_ISSUER` + client id/secret + `OIDC_REDIRECT_URI` + `SESSION_SECRET`) so
+users sign in via your IdP and a signed session cookie authorizes the dashboard; bearer tokens
+keep working for API/CI clients. See `/auth/login`, `/auth/callback`, `/auth/logout`, `/auth/me`.
 
 ---
 
@@ -155,11 +158,12 @@ browser extension by forwarding your own telemetry to HMAC-signed endpoints (sam
   Snout records the *sender's* domain as a discovered app when the mail looks like a
   signup/account notice; personal mailboxes and newsletters are ignored.
 
-**Pull-pollers (zero-touch)** — instead of pushing, Snout can *pull* sign-in logs on a schedule
-(no extra dependency). Set `IDP_POLL_INTERVAL_MINUTES` plus `OKTA_LOG_URL` + `OKTA_API_TOKEN`
-(Okta System Log) and/or `ENTRA_TENANT_ID`/`ENTRA_CLIENT_ID`/`ENTRA_CLIENT_SECRET` (Microsoft
-Graph). Off by default; outbound calls go only to your IdP, and credentials live in env and are
-never logged. (Google Workspace isn't included — its Reports API auth needs JWT signing.)
+**Pull-pollers (zero-touch)** — instead of pushing, Snout can *pull* sign-in logs on a schedule.
+Set `IDP_POLL_INTERVAL_MINUTES` plus `OKTA_LOG_URL` + `OKTA_API_TOKEN` (Okta System Log),
+`ENTRA_TENANT_ID`/`ENTRA_CLIENT_ID`/`ENTRA_CLIENT_SECRET` (Microsoft Graph), and/or
+`GOOGLE_SA_CLIENT_EMAIL`/`GOOGLE_SA_PRIVATE_KEY`/`GOOGLE_ADMIN_SUBJECT` (Google Admin SDK Reports,
+read-only, via a locally-signed service-account JWT). Off by default; outbound calls go only to
+your IdP's hosts, and credentials live in env and are never logged.
 
 All sensors (extension, IdP logs, email) **merge by domain** into one discovered record with a
 capped per-app history (`events`), surfaced in the dashboard's **Discovered** view. Discovery is
@@ -222,11 +226,15 @@ SSRF private-host block that applies to untrusted user/citation URLs. See **[SEC
 ## Persistence
 
 Default is JSON files under `DATA_DIR` (`assessments`, `discovered`, `kb`, `alerts`, `audit`) —
-zero setup, fine for small teams. For production, implement the `Store` interface in
-`server/src/store.ts` against Postgres (a table per collection, JSONB `data`, unique
-`lower(app)` / `domain` indexes for upsert) and swap the export; nothing else changes. The
-`Store` seam is also where **per-tenant data isolation** belongs for multi-tenant deployments
-(scope every query by tenant) — the JSON store is single-tenant and tags the audit log only.
+zero setup, single-tenant, fine for small teams. Set **`DATABASE_URL`** to switch to the built-in
+**Postgres store** (`server/src/store.pg.ts`): a table per collection with JSONB `data` and
+tenant-scoped keys, schema auto-created on first use (`server/db/schema.sql` is the reference).
+
+The Postgres store also provides **per-tenant data isolation**: every row carries a `tenant`
+column and **every query is scoped `WHERE tenant = $1`**, so one tenant can never read or write
+another's data. The request tenant is resolved by `withTenant` (via `AsyncLocalStorage`) from the
+bearer client's `x-tenant` header or an OIDC user's session claim. The JSON store ignores tenant
+(single-tenant).
 
 ## Demo
 
@@ -310,18 +318,20 @@ the web-search path):
   the **registrable domain** (eTLD+1), so `saml.acme.com` and `app.acme.com` collapse to `acme.com`.
 - **Roles & audit** — the admin `API_TOKEN` can do everything; an optional read-only
   `API_VIEWER_TOKEN` can `GET` but not mutate. Every mutating call is written to an **audit log**
-  (`GET /api/audit`, admin only) tagged with role and tenant (`TENANT_ID`). True per-tenant data
-  isolation is a Postgres-store concern (below).
+  (`GET /api/audit`, admin only) tagged with role and tenant. **Per-tenant data isolation** is
+  enforced by the Postgres store (`DATABASE_URL`): every query is scoped to the request's tenant
+  (see Persistence).
+- **OIDC dashboard login** — optional IdP sign-in (Authorization Code + PKCE) with a signed,
+  httpOnly session cookie; role/tenant derived from claims. Bearer auth still works alongside it.
 
 ## Tests
 
 ```bash
-npm test            # server: scoring + HMAC + discovery + KB/eval + posture + RBAC (vitest)
+npm test            # server: scoring + HMAC + discovery + KB/eval + posture + RBAC + Postgres isolation + OIDC + pollers (vitest)
 ```
 
 ## Roadmap ideas
 
-- Postgres store + audit log of who approved what
 - Spend signal join (NetSuite/Productiv) to flag shadow-IT you pay for but haven't assessed
 - Settings: default reviewers, score thresholds, secret rotation
 - Bot Framework Teams bot for true async replies

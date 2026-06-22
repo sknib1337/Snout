@@ -7,12 +7,32 @@ All notable changes to Snout are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **Postgres store + per-tenant data isolation** (`server/src/store.pg.ts`, `pg`). Set
+  `DATABASE_URL` to switch from the zero-config JSON store (single-tenant) to a Postgres
+  backend that scopes **every** row by tenant — each query carries `WHERE tenant = $1`, so one
+  tenant can never read or write another's data (closing the prior "looks multi-tenant, isn't"
+  gap where `TENANT_ID` was only an audit tag). A `withTenant` middleware carries the request
+  tenant via `AsyncLocalStorage` so the store facade scopes calls without threading a parameter
+  everywhere; the JSON store is unchanged and remains the default. Schema auto-creates on first
+  use; `server/db/schema.sql` ships as reference (+ optional row-level-security notes).
+- **OIDC dashboard login** (`server/src/oidc.ts`, `server/src/routes/auth.ts`, `openid-client` +
+  `jose`). When fully configured (`OIDC_ISSUER` + client id/secret + redirect URI +
+  `SESSION_SECRET`), users sign in via your IdP (Authorization Code + PKCE, state, nonce) and a
+  signed, httpOnly session cookie authorizes API calls. Bearer tokens still work alongside it.
+  Only ID-token claims are used for identity — no IdP tokens are stored. Role maps from a
+  configurable claim (`OIDC_ADMIN_VALUE`); the session tenant is authoritative (a user can't
+  escape it via `x-tenant`). The dashboard shows a sign-in gate and a sign-out control.
+- **Google Workspace IdP poller** (`server/src/pollers.ts`, `jose`). Completes the poller trio:
+  signs a service-account JWT (RS256) impersonating an admin via domain-wide delegation,
+  exchanges it for a read-only Reports scope token, and pulls login + OAuth-grant activity from
+  the Admin SDK Reports API into the existing `google` adapter. Off unless the SA credentials +
+  admin subject are set; outbound only to Google's fixed hosts; the key is never logged.
 - **IdP pull-pollers** (`server/src/pollers.ts`, depth D4). Optional zero-touch discovery:
   Snout periodically pulls Okta System Log (`OKTA_LOG_URL` + SSWS `OKTA_API_TOKEN`) and Microsoft
-  Entra sign-ins (`ENTRA_TENANT_ID`/`ENTRA_CLIENT_ID`/`ENTRA_CLIENT_SECRET`) via native fetch — no
-  new dependency — and feeds them through the same adapters as the push webhooks. Off unless
+  Entra sign-ins (`ENTRA_TENANT_ID`/`ENTRA_CLIENT_ID`/`ENTRA_CLIENT_SECRET`) via native fetch
+  and feeds them through the same adapters as the push webhooks. Off unless
   `IDP_POLL_INTERVAL_MINUTES` is set; outbound only to your IdP; `OKTA_LOG_URL` is validated at
-  startup; credentials are never logged. (Google Workspace omitted — its auth needs JWT signing.)
+  startup; credentials are never logged.
 - **Supporting depth (D4/D5).** Multi-sensor discovery now reduces hosts to the **registrable
   domain** (eTLD+1, heuristic public-suffix set — no new dependency) so sensors dedupe correctly.
   Optional **scheduled re-assessment** (`REASSESS_INTERVAL_HOURS`) re-runs stale assessments and
