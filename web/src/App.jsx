@@ -912,12 +912,31 @@ function KnowledgeView() {
     finally { setSaving(null); }
   };
 
-  let pending = 0, stale = 0;
+  // Bulk verify: accept every not-yet-human fact for a vendor at its current verdict.
+  const verifyAll = async (v) => {
+    setSaving(v.domain + "*");
+    try {
+      for (const c of CAPS) {
+        const f = v.controls?.[c.key];
+        if (f && f.source !== "human") await verifyControl(v.domain, c.key, { verdict: f.verdict, vendor: v.vendor, verifiedBy: "dashboard" });
+      }
+      await load();
+    } catch (e) { alert(e.message || "Bulk verify failed"); }
+    finally { setSaving(null); }
+  };
+
+  const unverifiedOf = (v) => CAPS.filter((c) => { const f = v.controls?.[c.key]; return f && f.source !== "human"; }).length;
+
+  let facts = 0, human = 0, pending = 0, stale = 0;
   vendors.forEach((v) => CAPS.forEach((c) => {
     const f = v.controls?.[c.key]; if (!f) return;
+    facts++;
     if (f.source !== "human") pending++;
-    else if (f.verifiedAt && Date.now() - new Date(f.verifiedAt).getTime() > STALE_MS) stale++;
+    else { human++; if (f.verifiedAt && Date.now() - new Date(f.verifiedAt).getTime() > STALE_MS) stale++; }
   }));
+  const verifiedPct = facts ? Math.round((human / facts) * 100) : 0;
+  // Prioritize the queue: most-unverified vendors first, then by name.
+  const ordered = [...vendors].sort((a, b) => unverifiedOf(b) - unverifiedOf(a) || a.vendor.localeCompare(b.vendor));
 
   if (!vendors.length) return (
     <div className="panel p-12 text-center">
@@ -936,15 +955,33 @@ function KnowledgeView() {
         <KpiTile label="Awaiting verification" value={pending} sub="agent / seed facts" subColor={C.tertiary} Icon={AlertTriangle} />
         <KpiTile label="Stale verified" value={stale} sub="older than 180 days" subColor={C.error} Icon={Clock} />
       </div>
-      {vendors.map((v) => (
-        <div key={v.domain} className="panel">
-          <div className="px-4 py-3 border-b hair flex items-center gap-2">
-            <span className="disp" style={{ fontWeight: 600, fontSize: 15, color: C.on }}>{v.vendor}</span>
-            <span className="mono txt-dim" style={{ fontSize: 11 }}>{v.domain}</span>
-          </div>
-          {CAPS.map((c) => <KbRow key={c.key} v={v} c={c} saving={saving} onVerify={verify} />)}
+      <div className="panel p-4">
+        <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
+          <span className="caps txt-var" style={{ fontSize: 10 }}>Human-verified coverage</span>
+          <span className="mono" style={{ fontSize: 12, color: C.on }}>{human}/{facts} facts · {verifiedPct}%</span>
         </div>
-      ))}
+        <div style={{ height: 8, borderRadius: 4, background: "rgba(255,255,255,0.07)", overflow: "hidden" }}>
+          <div style={{ width: `${verifiedPct}%`, height: "100%", background: C.secondary, transition: "width .3s" }} />
+        </div>
+      </div>
+      {ordered.map((v) => {
+        const nUnv = unverifiedOf(v);
+        return (
+          <div key={v.domain} className="panel">
+            <div className="px-4 py-3 border-b hair flex items-center gap-2">
+              <span className="disp" style={{ fontWeight: 600, fontSize: 15, color: C.on }}>{v.vendor}</span>
+              <span className="mono txt-dim" style={{ fontSize: 11 }}>{v.domain}</span>
+              <span className="flex-1" />
+              {nUnv > 0 && (
+                <button onClick={() => verifyAll(v)} disabled={saving === v.domain + "*"} className="btn-ghost" style={{ padding: "0.2rem 0.6rem", fontSize: 10 }}>
+                  {saving === v.domain + "*" ? "Verifying…" : `Verify all (${nUnv})`}
+                </button>
+              )}
+            </div>
+            {CAPS.map((c) => <KbRow key={c.key} v={v} c={c} saving={saving} onVerify={verify} />)}
+          </div>
+        );
+      })}
     </div>
   );
 }
