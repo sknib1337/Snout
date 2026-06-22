@@ -1,13 +1,79 @@
 {
   "vendor": "Salesforce",
   "domain": "salesforce.com",
-  "updatedAt": "2026-06-21",
+  "updatedAt": "2026-06-22",
   "controls": {
-    "sso": { "verdict": "supported", "confidence": 0.85, "standards": ["SAML 2.0", "OIDC"], "summary": "SAML 2.0 and OpenID Connect SSO; can act as SP and IdP.", "citations": [{ "title": "Salesforce Help", "url": "https://help.salesforce.com" }, { "title": "The SSO Wall of Shame", "url": "https://sso.tax/" }], "source": "human", "verifiedBy": "seed-maintainer", "verifiedAt": "2026-06-21" },
-    "ulm": { "verdict": "supported", "confidence": 0.75, "standards": ["SCIM 2.0"], "summary": "SCIM provisioning via Identity / connected IdPs.", "citations": [{ "title": "Salesforce Help", "url": "https://help.salesforce.com" }], "source": "seed" },
-    "entitlements": { "verdict": "partial", "confidence": 0.5, "standards": ["SCIM groups", "RBAC"], "summary": "Profiles/permission sets are rich but mapping from IdP groups is coarse.", "citations": [{ "title": "Salesforce Help", "url": "https://help.salesforce.com" }], "source": "seed" },
-    "riskSignals": { "verdict": "unknown", "confidence": 0.35, "standards": [], "summary": "Event Monitoring exists but no documented CAEP/Shared Signals standard support.", "citations": [{ "title": "Salesforce Help", "url": "https://help.salesforce.com" }], "source": "seed" },
-    "logout": { "verdict": "partial", "confidence": 0.45, "standards": ["Session management"], "summary": "Session management and SSO logout; back-channel SLO varies by config.", "citations": [{ "title": "Salesforce Help", "url": "https://help.salesforce.com" }], "source": "seed" },
-    "tokenRevocation": { "verdict": "supported", "confidence": 0.7, "standards": ["OAuth 2.0"], "summary": "OAuth 2.0 token revocation endpoint; connected-app session/token management.", "citations": [{ "title": "Salesforce Help", "url": "https://help.salesforce.com" }], "source": "seed" }
+    "sso": {
+      "verdict": "supported",
+      "confidence": 0.85,
+      "standards": ["SAML 2.0", "OIDC"],
+      "summary": "SAML 2.0 and OpenID Connect SSO; Salesforce can act as both Service Provider and Identity Provider.",
+      "citations": [
+        { "title": "Salesforce Identity — Help", "url": "https://help.salesforce.com/s/articleView?id=sf.identity_overview.htm" },
+        { "title": "The SSO Wall of Shame", "url": "https://sso.tax/" }
+      ],
+      "source": "human",
+      "verifiedBy": "snout-curated",
+      "verifiedAt": "2026-06-22"
+    },
+    "ulm": {
+      "verdict": "supported",
+      "confidence": 0.8,
+      "standards": ["SCIM 2.0"],
+      "summary": "SCIM 2.0 user provisioning/deprovisioning via the /services/scim/v2 endpoints, authorized with an OAuth 2.0 access token.",
+      "citations": [
+        { "title": "Manage Salesforce User Identities with SCIM — Help", "url": "https://help.salesforce.com/s/articleView?id=xcloud.identity_scim_overview.htm" },
+        { "title": "SCIM and REST API Reference — Help", "url": "https://help.salesforce.com/s/articleView?id=xcloud.identity_scim_rest_api.htm" }
+      ],
+      "source": "human",
+      "verifiedBy": "snout-curated",
+      "verifiedAt": "2026-06-22"
+    },
+    "entitlements": {
+      "verdict": "partial",
+      "confidence": 0.5,
+      "standards": ["SCIM groups", "RBAC"],
+      "summary": "Profiles/permission sets are rich, but mapping from IdP groups via SCIM is coarse (group membership, not fine-grained permission-set assignment).",
+      "citations": [
+        { "title": "SCIM and REST API Reference — Help", "url": "https://help.salesforce.com/s/articleView?id=xcloud.identity_scim_rest_api.htm" }
+      ],
+      "source": "human",
+      "verifiedBy": "snout-curated",
+      "verifiedAt": "2026-06-22"
+    },
+    "riskSignals": {
+      "verdict": "unknown",
+      "confidence": 0.35,
+      "standards": [],
+      "summary": "Event Monitoring / Real-Time Event Monitoring exists, but no documented CAEP / Shared Signals Framework standard transmitter or receiver as of 2026-06.",
+      "citations": [],
+      "source": "human",
+      "verifiedBy": "snout-curated",
+      "verifiedAt": "2026-06-22"
+    },
+    "logout": {
+      "verdict": "partial",
+      "confidence": 0.45,
+      "standards": ["Session management"],
+      "summary": "Session management and SSO logout supported; SAML Single Logout (back-channel) varies by configuration.",
+      "citations": [
+        { "title": "Salesforce Identity — Help", "url": "https://help.salesforce.com/s/articleView?id=sf.identity_overview.htm" }
+      ],
+      "source": "human",
+      "verifiedBy": "snout-curated",
+      "verifiedAt": "2026-06-22"
+    },
+    "tokenRevocation": {
+      "verdict": "supported",
+      "confidence": 0.75,
+      "standards": ["OAuth 2.0"],
+      "summary": "OAuth 2.0 token revocation endpoint (/services/oauth2/revoke); connected-app session/token management in Setup.",
+      "citations": [
+        { "title": "OAuth 2.0 token revocation — Salesforce Help", "url": "https://help.salesforce.com/s/articleView?id=sf.remoteaccess_revoke_token.htm" }
+      ],
+      "source": "human",
+      "verifiedBy": "snout-curated",
+      "verifiedAt": "2026-06-22"
+    }
   }
 }

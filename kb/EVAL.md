@@ -18,7 +18,7 @@ How much does the KB / the model actually add over a naive floor? (Same cases fo
 |---|---|---|---|
 | naive (always-unknown) | 29.4% | 47.2% | 0.0% |
 | KB-only (deterministic) | 80.4% | 47.2% | 52.0% |
-| KB-verified-only (human facts) | 37.3% | 47.2% | 7.8% |
+| KB-verified-only (human facts) | 47.1% | 47.2% | 17.6% |
 
 
 ### Per-control accuracy
@@ -52,13 +52,14 @@ Does predicted confidence track actual accuracy? (Well-calibrated ⇒ accuracy �
 | Confidence bucket | n | Accuracy | Avg confidence |
 |---|---|---|---|
 | 0.00–0.50 | 32 | 100.0% | 0.38 |
-| 0.50–0.70 | 10 | 90.0% | 0.52 |
-| 0.70–0.85 | 17 | 100.0% | 0.74 |
-| 0.85–1.00 | 7 | 100.0% | 0.86 |
+| 0.50–0.70 | 10 | 90.0% | 0.53 |
+| 0.70–0.85 | 17 | 100.0% | 0.75 |
+| 0.85–1.00 | 7 | 100.0% | 0.88 |
 
 ### Recent runs (trend)
 | Date | Mode | Accuracy | Coverage |
 |---|---|---|---|
 | 2026-06-21 | KB-only | 89.7% | 67.9% |
+| 2026-06-22 | KB-only+baseline | 80.4% | 52.0% |
 | 2026-06-22 | KB-only+baseline | 80.4% | 52.0% |
 | 2026-06-22 | KB-only+baseline | 80.4% | 52.0% |

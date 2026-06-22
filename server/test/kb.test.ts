@@ -41,7 +41,9 @@ describe("KB load + merge", () => {
     const v = await kb.getVerifiedFacts("slack.com");
     expect(v.sso?.verdict).toBe("supported");   // human
     expect(v.ulm?.verdict).toBe("supported");   // human
-    expect(v.entitlements).toBeUndefined();     // seed, not verified
+    // A still-seeded vendor exposes none of its facts as verified.
+    const vn = await kb.getVerifiedFacts("notion.so");
+    expect(vn.entitlements).toBeUndefined();    // seed, not verified
   });
 
   it("listAllVendors merges repo files + overrides and sorts by vendor", async () => {
@@ -95,8 +97,9 @@ describe("kbStats (coverage + verification health)", () => {
 describe("kbVerifiedPredict (human-only) vs kbPredict (all facts)", () => {
   it("returns only human-verified verdicts, unknown for seed-only controls", async () => {
     const p = await evalmod.kbVerifiedPredict("slack.com", "Slack");
-    expect(p.sso?.verdict).toBe("supported");      // human-verified
-    expect(p.entitlements?.verdict).toBe("unknown"); // seed only -> not surfaced
+    expect(p.sso?.verdict).toBe("supported");      // human-verified (verified core)
+    const pn = await evalmod.kbVerifiedPredict("notion.so", "Notion");
+    expect(pn.entitlements?.verdict).toBe("unknown"); // seed only -> not surfaced
   });
 });
 
