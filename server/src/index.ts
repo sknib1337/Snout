@@ -10,6 +10,7 @@ import { alerts } from "./routes/alerts";
 import { webhooks } from "./routes/webhooks";
 import { slack } from "./routes/slack";
 import { teams } from "./routes/teams";
+import { auth } from "./routes/auth";
 import { apiAuth, withTenant, writeGuard, auditMiddleware } from "./security/auth";
 import { apiLimiter, webhookLimiter } from "./security/limits";
 import { requestId, notFound, errorHandler } from "./security/errors";
@@ -43,6 +44,7 @@ app.get("/health", (_req, res) =>
 
 const apiRouters = config.enableCatalog ? [assessments, catalog, kb, alerts] : [assessments, kb, alerts];
 app.use("/api", apiLimiter, apiAuth, withTenant, writeGuard, auditMiddleware, ...apiRouters);
+app.use("/auth", apiLimiter, auth);
 app.use("/webhooks", webhookLimiter, webhooks);
 app.use("/slack", webhookLimiter, slack);
 app.use("/teams", webhookLimiter, teams);

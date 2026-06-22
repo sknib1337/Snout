@@ -5,6 +5,7 @@ import { config } from "../config";
 import { store } from "../store";
 import { runAsTenant } from "../tenant";
 import { sanitizeField } from "./sanitize";
+import { readCookie, readSession, SESSION_COOKIE } from "../oidc";
 
 export type Role = "admin" | "viewer";
 
@@ -22,16 +23,36 @@ const SAFE = new Set(["GET", "HEAD", "OPTIONS"]);
  * (enforced at startup) unless ALLOW_ANON. The admin API_TOKEN can do everything;
  * an optional API_VIEWER_TOKEN is read-only. Also tags the request with a tenant.
  */
-export function apiAuth(req: Request, res: Response, next: NextFunction) {
+export async function apiAuth(req: Request, res: Response, next: NextFunction) {
   (req as any).tenant = sanitizeField(req.header("x-tenant"), 64) || config.tenantId;
-  if (!config.apiToken) {
-    // Dev convenience only (assertStartup blocks anon in production). Full access.
-    (req as any).role = "admin" as Role;
-    return next();
-  }
+
+  // 1) Bearer token (admin / read-only viewer). Trusted API/operator clients.
   const provided = req.header("authorization") || "";
-  if (timingSafe(provided, `Bearer ${config.apiToken}`)) { (req as any).role = "admin" as Role; return next(); }
-  if (config.viewerToken && timingSafe(provided, `Bearer ${config.viewerToken}`)) { (req as any).role = "viewer" as Role; return next(); }
+  if (config.apiToken) {
+    if (timingSafe(provided, `Bearer ${config.apiToken}`)) { (req as any).role = "admin" as Role; return next(); }
+    if (config.viewerToken && timingSafe(provided, `Bearer ${config.viewerToken}`)) { (req as any).role = "viewer" as Role; return next(); }
+  }
+
+  // 2) OIDC session cookie. Role and tenant come from the verified session — the
+  // session tenant is authoritative (a logged-in user cannot escape it via x-tenant).
+  if (config.oidcEnabled) {
+    const token = readCookie(req, SESSION_COOKIE);
+    if (token) {
+      const session = await readSession(token);
+      if (session) {
+        (req as any).role = session.role;
+        (req as any).tenant = session.tenant || (req as any).tenant;
+        (req as any).user = session.sub;
+        return next();
+      }
+    }
+  }
+
+  // 3) Dev convenience: no auth configured at all (assertStartup blocks this in
+  // production unless ALLOW_ANON). Full access.
+  if (!config.apiToken && !config.oidcEnabled) { (req as any).role = "admin" as Role; return next(); }
+
+  // 4) Reject.
   return res.status(401).json({ error: "Unauthorized" });
 }
 

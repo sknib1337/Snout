@@ -31,6 +31,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/api": { target, changeOrigin: true },
+      "/auth": { target, changeOrigin: true },
       "/webhooks": { target, changeOrigin: true },
       "/slack": { target, changeOrigin: true },
       "/teams": { target, changeOrigin: true },

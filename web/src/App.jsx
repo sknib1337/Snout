@@ -9,7 +9,7 @@ import {
   Layers, ScanSearch, ChevronRight, Sparkles, ListChecks, ShieldAlert,
   LayoutDashboard, Boxes, Clock, TerminalSquare, Radar as RadarIcon, Trash2,
 } from "lucide-react";
-import { assess as apiAssess, listAssessments, listDiscovered, assessDiscovered, deleteDiscovered, getFeatures, verifyControl, listAlerts, listKb } from "./api";
+import { assess as apiAssess, listAssessments, listDiscovered, assessDiscovered, deleteDiscovered, getFeatures, verifyControl, listAlerts, listKb, getAuth, loginUrl, logout } from "./api";
 
 /* ============================================================ *
  * Snout — Critical Enterprise SaaS Controls console
@@ -1000,6 +1000,7 @@ export default function App() {
   const [busyDomain, setBusyDomain] = useState(null);
   const [features, setFeatures] = useState({ catalog: true });
   const [alerts, setAlerts] = useState([]);
+  const [auth, setAuth] = useState({ oidcEnabled: false, authenticated: true });
 
   const refreshDiscovered = useCallback(async () => {
     try { setDiscovered(await listDiscovered()); } catch { /* offline */ }
@@ -1008,6 +1009,11 @@ export default function App() {
 
   useEffect(() => {
     (async () => {
+      const a = await getAuth();
+      setAuth(a);
+      // When OIDC is enabled but no valid session exists, stop here and show the
+      // sign-in gate rather than firing API calls that would 401.
+      if (a.oidcEnabled && !a.authenticated) { setLoaded(true); return; }
       const f = await getFeatures();
       setFeatures(f);
       try {
@@ -1071,6 +1077,28 @@ export default function App() {
   const title = view === "detail" && current ? current.app : (TITLES[view] || "Snout");
   const navActive = (key) => view === key || ((view === "detail" || view === "assess") && key === "command");
 
+  // OIDC sign-in gate: when login is enabled and there's no valid session, show a
+  // sign-in screen instead of the app (which would only 401).
+  if (auth.oidcEnabled && !auth.authenticated) {
+    const failed = new URLSearchParams(window.location.search).get("login") === "failed";
+    return (
+      <div className="ob">
+        <Style />
+        <div className="ob-bg" aria-hidden="true" />
+        <ShaderBG />
+        <div className="min-h-screen grid place-items-center p-6">
+          <div className="panel p-8 text-center" style={{ maxWidth: 380 }}>
+            <div className="mb-5 flex justify-center"><Logo /></div>
+            <h2 className="disp mb-2" style={{ fontSize: 18, fontWeight: 600, color: C.on }}>Sign in to Snout</h2>
+            <p className="txt-var mb-6" style={{ fontSize: 13 }}>Authenticate with your identity provider to continue.</p>
+            {failed && <p className="mb-4" style={{ fontSize: 12.5, color: C.error }}>Sign-in failed or was cancelled. Please try again.</p>}
+            <a href={loginUrl()} className="btn-primary w-full" style={{ justifyContent: "center", padding: "0.6rem" }}>Sign in with SSO</a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="ob">
       <Style />
@@ -1118,6 +1146,12 @@ export default function App() {
               <input value={topSearch} onChange={(e) => setTopSearch(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submitTopSearch()} placeholder="Search or assess an app…" className="inp" style={{ padding: "0.45rem 2rem 0.45rem 2.25rem" }} />
             </div>
             <div className="flex items-center gap-2 txt-secondary shrink-0"><span className="dot pulse-green" style={{ background: C.secondary }} /><span className="caps">System Healthy</span></div>
+            {auth.oidcEnabled && auth.authenticated && (
+              <div className="flex items-center gap-2 shrink-0 pl-3 border-l hair">
+                {auth.email && <span className="txt-dim" style={{ fontSize: 11 }} title={`Role: ${auth.role} · Tenant: ${auth.tenant}`}>{auth.email}</span>}
+                <button onClick={async () => { await logout(); window.location.href = window.location.pathname; }} className="caps txt-var" style={{ fontSize: 9, padding: "0.3rem 0.55rem", border: `1px solid ${C.outlineVar}`, borderRadius: 4 }}>Sign out</button>
+              </div>
+            )}
           </header>
 
           <div className="p-4 sm:p-6">

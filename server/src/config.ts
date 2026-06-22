@@ -40,6 +40,24 @@ export const config = {
   // data isolation requires the Postgres Store — see SECURITY.md / README.
   tenantId: process.env.TENANT_ID || "default",
 
+  // OIDC dashboard login (optional). When fully configured, users sign in via your
+  // IdP and a signed session cookie authorizes API calls (alongside bearer tokens).
+  // We only use the ID-token claims for identity; no IdP tokens are stored.
+  oidcIssuer: (process.env.OIDC_ISSUER || "").replace(/\/+$/, ""),
+  oidcClientId: process.env.OIDC_CLIENT_ID || "",
+  oidcClientSecret: process.env.OIDC_CLIENT_SECRET || "",
+  oidcRedirectUri: process.env.OIDC_REDIRECT_URI || "",
+  oidcScopes: process.env.OIDC_SCOPES || "openid email profile",
+  // Claim → role mapping. If OIDC_ADMIN_VALUE is set, only users whose
+  // OIDC_ROLE_CLAIM contains it get admin; everyone else is read-only viewer. If
+  // it is unset, all authenticated users are admin (no role differentiation).
+  oidcRoleClaim: process.env.OIDC_ROLE_CLAIM || "groups",
+  oidcAdminValue: process.env.OIDC_ADMIN_VALUE || "",
+  // Optional claim whose value scopes the session to a tenant (multi-tenant SSO).
+  oidcTenantClaim: process.env.OIDC_TENANT_CLAIM || "",
+  // HMAC secret for the signed session + login-transaction cookies.
+  sessionSecret: process.env.SESSION_SECRET || "",
+
   // Trust proxy setting so client IPs (for rate limiting) are accurate behind a proxy.
   trustProxy: process.env.TRUST_PROXY || "loopback",
 
@@ -90,6 +108,11 @@ export const config = {
   // mounted and the dashboard hides the Discovered view (ship with or without
   // the shadow-discovery extension from one build).
   enableCatalog: process.env.ENABLE_CATALOG !== "false",
+
+  // OIDC is active only when fully configured (issuer + client + redirect + secret).
+  get oidcEnabled(): boolean {
+    return !!(this.oidcIssuer && this.oidcClientId && this.oidcClientSecret && this.oidcRedirectUri && this.sessionSecret);
+  },
 };
 
 export function assertStartup() {
@@ -123,6 +146,25 @@ export function assertStartup() {
   }
   if (config.oktaLogUrl && !safeBaseUrl(config.oktaLogUrl)) {
     throw new Error("OKTA_LOG_URL must be a valid http(s) URL without embedded credentials.");
+  }
+
+  // OIDC: all-or-nothing. A partial config is a footgun (a login route that
+  // half-works), so fail closed if some but not all required vars are set.
+  const oidcVars = {
+    OIDC_ISSUER: config.oidcIssuer, OIDC_CLIENT_ID: config.oidcClientId,
+    OIDC_CLIENT_SECRET: config.oidcClientSecret, OIDC_REDIRECT_URI: config.oidcRedirectUri,
+    SESSION_SECRET: config.sessionSecret,
+  };
+  const setKeys = Object.entries(oidcVars).filter(([, v]) => v).map(([k]) => k);
+  if (setKeys.length > 0 && setKeys.length < Object.keys(oidcVars).length) {
+    const missing = Object.entries(oidcVars).filter(([, v]) => !v).map(([k]) => k);
+    throw new Error(`Incomplete OIDC config: set all of ${Object.keys(oidcVars).join(", ")} or none. Missing: ${missing.join(", ")}.`);
+  }
+  if (config.oidcEnabled) {
+    if (!safeBaseUrl(config.oidcIssuer)) throw new Error("OIDC_ISSUER must be a valid http(s) URL without embedded credentials.");
+    if (config.isProd && config.sessionSecret.length < 32) {
+      throw new Error("SESSION_SECRET must be at least 32 characters in production.");
+    }
   }
 
   // Fail closed: no anonymous, unauthenticated API in production.
