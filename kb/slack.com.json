@@ -1,7 +1,7 @@
 {
   "vendor": "Slack",
   "domain": "slack.com",
-  "updatedAt": "2026-06-21",
+  "updatedAt": "2026-06-22",
   "controls": {
     "sso": {
       "verdict": "supported",
@@ -10,53 +10,70 @@
       "summary": "SAML 2.0 SSO on Business+ and Enterprise Grid; OIDC via supported IdPs. SSO is gated to paid/enterprise tiers ('SSO tax').",
       "citations": [
         { "title": "The SSO Wall of Shame", "url": "https://sso.tax/" },
-        { "title": "Slack Help Center", "url": "https://slack.com/help" }
+        { "title": "Manage members with SCIM provisioning — Slack", "url": "https://slack.com/help/articles/212572638-Manage-members-with-SCIM-provisioning" }
       ],
       "source": "human",
-      "verifiedBy": "seed-maintainer",
-      "verifiedAt": "2026-06-21"
+      "verifiedBy": "snout-curated",
+      "verifiedAt": "2026-06-22"
     },
     "ulm": {
       "verdict": "supported",
-      "confidence": 0.85,
+      "confidence": 0.9,
       "standards": ["SCIM 2.0"],
-      "summary": "SCIM 2.0 user provisioning and deprovisioning on Business+ / Enterprise Grid.",
-      "citations": [{ "title": "Slack Help Center", "url": "https://slack.com/help" }],
+      "summary": "SCIM 1.1/2.0 API provisions, updates, and deactivates members org-wide on Enterprise Grid (single org-level token). Users are deactivated (not deleted) and immediately signed out of all devices.",
+      "citations": [
+        { "title": "Using the Slack SCIM API — Slack Developer Docs", "url": "https://docs.slack.dev/admins/scim-api/" },
+        { "title": "SCIM API reference — Slack Developer Docs", "url": "https://docs.slack.dev/reference/scim-api/" }
+      ],
       "source": "human",
-      "verifiedBy": "seed-maintainer",
-      "verifiedAt": "2026-06-21"
+      "verifiedBy": "snout-curated",
+      "verifiedAt": "2026-06-22"
     },
     "entitlements": {
       "verdict": "partial",
       "confidence": 0.6,
       "standards": ["SCIM groups"],
-      "summary": "SCIM group push and role mapping available on Enterprise Grid; limited fine-grained entitlements.",
-      "citations": [{ "title": "Slack Help Center", "url": "https://slack.com/help" }],
-      "source": "seed"
+      "summary": "SCIM Groups push and membership sync are available org-wide on Enterprise Grid; fine-grained in-product entitlements beyond group/workspace membership are limited.",
+      "citations": [
+        { "title": "SCIM API reference (Groups) — Slack Developer Docs", "url": "https://docs.slack.dev/reference/scim-api/" }
+      ],
+      "source": "human",
+      "verifiedBy": "snout-curated",
+      "verifiedAt": "2026-06-22"
     },
     "riskSignals": {
       "verdict": "unsupported",
       "confidence": 0.5,
       "standards": [],
-      "summary": "No public CAEP/SSF transmitter or receiver documented.",
+      "summary": "No public CAEP / Shared Signals Framework transmitter or receiver documented as of 2026-06.",
       "citations": [],
-      "source": "seed"
+      "source": "human",
+      "verifiedBy": "snout-curated",
+      "verifiedAt": "2026-06-22"
     },
     "logout": {
       "verdict": "partial",
-      "confidence": 0.5,
-      "standards": ["RP-initiated logout"],
-      "summary": "Session management and forced sign-out via admin/SSO; Single Logout support is limited.",
-      "citations": [{ "title": "Slack Help Center", "url": "https://slack.com/help" }],
-      "source": "seed"
+      "confidence": 0.55,
+      "standards": ["Session management"],
+      "summary": "Admin/SCIM deactivation immediately signs a member out of all devices, and admins can force sign-out; standard SAML Single Logout (SLO) is limited.",
+      "citations": [
+        { "title": "Using the Slack SCIM API — Slack Developer Docs", "url": "https://docs.slack.dev/admins/scim-api/" }
+      ],
+      "source": "human",
+      "verifiedBy": "snout-curated",
+      "verifiedAt": "2026-06-22"
     },
     "tokenRevocation": {
       "verdict": "supported",
       "confidence": 0.8,
       "standards": ["OAuth 2.0"],
-      "summary": "OAuth token revocation via auth.revoke and app management; admins can revoke sessions and tokens.",
-      "citations": [{ "title": "Slack API", "url": "https://api.slack.com/" }],
-      "source": "seed"
+      "summary": "OAuth token revocation via auth.revoke; admins can revoke app tokens and member sessions from the org admin console.",
+      "citations": [
+        { "title": "auth.revoke method — Slack API", "url": "https://api.slack.com/methods/auth.revoke" }
+      ],
+      "source": "human",
+      "verifiedBy": "snout-curated",
+      "verifiedAt": "2026-06-22"
     }
   }
 }
