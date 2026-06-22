@@ -8,7 +8,7 @@
 // KB file cannot inject prompt content or unsafe links.
 import { promises as fs } from "fs";
 import path from "path";
-import { CONTROLS, ControlKey, Verdict, ControlFact, KbVendor } from "./controls";
+import { CONTROLS, ControlKey, Verdict, ControlFact, FactSource, KbVendor } from "./controls";
 import { store } from "./store";
 import { safeUrl, sanitizeField } from "./security/sanitize";
 
@@ -153,6 +153,54 @@ export async function getVerifiedFacts(key: string): Promise<Partial<Record<Cont
   const out: Partial<Record<ControlKey, ControlFact>> = {};
   for (const c of CONTROL_KEYS) if (controls[c]?.source === "human") out[c] = controls[c];
   return out;
+}
+
+// Human-verified facts older than this are flagged stale (re-verification due).
+export const FRESHNESS_MS = 180 * 24 * 3600 * 1000;
+
+export interface KbStats {
+  vendors: number;
+  facts: number;
+  bySource: Record<FactSource, number>;
+  verifiedRatio: number;          // human-verified facts / total facts
+  staleVerified: number;          // human facts whose verifiedAt is older than FRESHNESS_MS
+  fullyVerifiedVendors: number;   // vendors where every covered control is human-verified
+  controlCoverage: Record<ControlKey, number>; // vendors with any fact for each control
+}
+
+/** Snapshot of KB coverage + verification health. Powers `npm run kb:stats` and the
+ *  dashboard progress bar — so "the KB is human-verified and compounding" is measured. */
+export async function kbStats(now: number = Date.now()): Promise<KbStats> {
+  const vendors = await listAllVendors();
+  const bySource: Record<FactSource, number> = { human: 0, agent: 0, seed: 0 };
+  const controlCoverage = Object.fromEntries(CONTROL_KEYS.map((k) => [k, 0])) as Record<ControlKey, number>;
+  let facts = 0, staleVerified = 0, fullyVerifiedVendors = 0;
+  for (const v of vendors) {
+    const keys = Object.keys(v.controls) as ControlKey[];
+    let allHuman = keys.length > 0;
+    for (const k of keys) {
+      const f = v.controls[k]!;
+      facts++;
+      bySource[f.source]++;
+      controlCoverage[k]++;
+      if (f.source === "human") {
+        const at = f.verifiedAt ? Date.parse(f.verifiedAt) : NaN;
+        if (!isNaN(at) && now - at > FRESHNESS_MS) staleVerified++;
+      } else {
+        allHuman = false;
+      }
+    }
+    if (allHuman) fullyVerifiedVendors++;
+  }
+  return {
+    vendors: vendors.length,
+    facts,
+    bySource,
+    verifiedRatio: facts ? bySource.human / facts : 0,
+    staleVerified,
+    fullyVerifiedVendors,
+    controlCoverage,
+  };
 }
 
 /** Persist agent findings as unverified proposals so the KB compounds over time.

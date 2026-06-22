@@ -74,6 +74,32 @@ describe("eval harness (KB-only, deterministic)", () => {
   });
 });
 
+describe("kbStats (coverage + verification health)", () => {
+  it("counts facts by source and computes the verified ratio", async () => {
+    const s = await kb.kbStats();
+    expect(s.vendors).toBeGreaterThanOrEqual(11);
+    expect(s.facts).toBe(s.bySource.human + s.bySource.agent + s.bySource.seed);
+    expect(s.bySource.human).toBeGreaterThanOrEqual(8); // seeded human-verified facts
+    expect(s.verifiedRatio).toBeCloseTo(s.bySource.human / s.facts);
+    expect(s.controlCoverage.sso).toBeGreaterThanOrEqual(11);
+  });
+
+  it("flags human facts as stale once past the freshness window", async () => {
+    const future = Date.parse("2099-01-01T00:00:00Z");
+    const s = await kb.kbStats(future);
+    expect(s.staleVerified).toBeGreaterThan(0);
+    expect(s.staleVerified).toBeLessThanOrEqual(s.bySource.human);
+  });
+});
+
+describe("kbVerifiedPredict (human-only) vs kbPredict (all facts)", () => {
+  it("returns only human-verified verdicts, unknown for seed-only controls", async () => {
+    const p = await evalmod.kbVerifiedPredict("slack.com", "Slack");
+    expect(p.sso?.verdict).toBe("supported");      // human-verified
+    expect(p.entitlements?.verdict).toBe("unknown"); // seed only -> not surfaced
+  });
+});
+
 describe("KB override precedence", () => {
   it("human override beats a seed file fact; an agent proposal never beats a human file fact", async () => {
     // human override of a seed control

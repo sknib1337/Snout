@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "eval": "tsx eval/run.ts",
     "kb:validate": "tsx eval/validate.ts",
+    "kb:stats": "tsx scripts/kb-stats.ts",
     "seed:kb": "tsx scripts/seed-kb.ts"
   },
   "dependencies": {
