@@ -18,6 +18,7 @@ How much does the KB / the model actually add over a naive floor? (Same cases fo
 |---|---|---|---|
 | naive (always-unknown) | 29.4% | 47.2% | 0.0% |
 | KB-only (deterministic) | 80.4% | 47.2% | 52.0% |
+| KB-verified-only (human facts) | 37.3% | 47.2% | 7.8% |
 
 
 ### Per-control accuracy
@@ -59,4 +60,5 @@ Does predicted confidence track actual accuracy? (Well-calibrated â‡’ accuracy â
 | Date | Mode | Accuracy | Coverage |
 |---|---|---|---|
 | 2026-06-21 | KB-only | 89.7% | 67.9% |
+| 2026-06-22 | KB-only+baseline | 80.4% | 52.0% |
 | 2026-06-22 | KB-only+baseline | 80.4% | 52.0% |
