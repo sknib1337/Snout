@@ -1,0 +1,13 @@
+{
+  "vendor": "Datadog",
+  "domain": "datadoghq.com",
+  "updatedAt": "2026-06-21",
+  "controls": {
+    "sso": { "verdict": "supported", "confidence": 0.8, "standards": ["SAML 2.0", "OIDC"], "summary": "SAML 2.0 SSO and OIDC supported.", "citations": [{ "title": "Datadog Docs", "url": "https://docs.datadoghq.com" }, { "title": "The SSO Wall of Shame", "url": "https://sso.tax/" }], "source": "seed" },
+    "ulm": { "verdict": "supported", "confidence": 0.7, "standards": ["SCIM 2.0"], "summary": "SCIM provisioning supported via major IdPs.", "citations": [{ "title": "Datadog Docs", "url": "https://docs.datadoghq.com" }], "source": "seed" },
+    "entitlements": { "verdict": "partial", "confidence": 0.5, "standards": ["SCIM groups", "RBAC"], "summary": "Role mapping via SCIM/SAML; granular RBAC in-product.", "citations": [{ "title": "Datadog Docs", "url": "https://docs.datadoghq.com" }], "source": "seed" },
+    "riskSignals": { "verdict": "unknown", "confidence": 0.3, "standards": [], "summary": "No documented CAEP/SSF support.", "citations": [], "source": "seed" },
+    "logout": { "verdict": "partial", "confidence": 0.4, "standards": ["Session management"], "summary": "Session controls; SLO not documented.", "citations": [{ "title": "Datadog Docs", "url": "https://docs.datadoghq.com" }], "source": "seed" },
+    "tokenRevocation": { "verdict": "partial", "confidence": 0.45, "standards": ["OAuth 2.0", "API keys"], "summary": "API/application keys are revocable; OAuth app management.", "citations": [{ "title": "Datadog Docs", "url": "https://docs.datadoghq.com" }], "source": "seed" }
+  }
+}

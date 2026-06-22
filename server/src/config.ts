@@ -33,6 +33,30 @@ export const config = {
   // Auth. Required in production unless ALLOW_ANON=true (discouraged).
   apiToken: process.env.API_TOKEN || "",
   allowAnon: process.env.ALLOW_ANON === "true",
+  // RBAC (EPIC-ENTERPRISE): an optional read-only token. Holders can GET but not
+  // mutate. The admin API_TOKEN can do everything.
+  viewerToken: process.env.API_VIEWER_TOKEN || "",
+  // Tenant tag recorded on the audit log (single-tenant default). True per-tenant
+  // data isolation requires the Postgres Store — see SECURITY.md / README.
+  tenantId: process.env.TENANT_ID || "default",
+
+  // OIDC dashboard login (optional). When fully configured, users sign in via your
+  // IdP and a signed session cookie authorizes API calls (alongside bearer tokens).
+  // We only use the ID-token claims for identity; no IdP tokens are stored.
+  oidcIssuer: (process.env.OIDC_ISSUER || "").replace(/\/+$/, ""),
+  oidcClientId: process.env.OIDC_CLIENT_ID || "",
+  oidcClientSecret: process.env.OIDC_CLIENT_SECRET || "",
+  oidcRedirectUri: process.env.OIDC_REDIRECT_URI || "",
+  oidcScopes: process.env.OIDC_SCOPES || "openid email profile",
+  // Claim → role mapping. If OIDC_ADMIN_VALUE is set, only users whose
+  // OIDC_ROLE_CLAIM contains it get admin; everyone else is read-only viewer. If
+  // it is unset, all authenticated users are admin (no role differentiation).
+  oidcRoleClaim: process.env.OIDC_ROLE_CLAIM || "groups",
+  oidcAdminValue: process.env.OIDC_ADMIN_VALUE || "",
+  // Optional claim whose value scopes the session to a tenant (multi-tenant SSO).
+  oidcTenantClaim: process.env.OIDC_TENANT_CLAIM || "",
+  // HMAC secret for the signed session + login-transaction cookies.
+  sessionSecret: process.env.SESSION_SECRET || "",
 
   // Trust proxy setting so client IPs (for rate limiting) are accurate behind a proxy.
   trustProxy: process.env.TRUST_PROXY || "loopback",
@@ -50,10 +74,50 @@ export const config = {
 
   dataDir: process.env.DATA_DIR || "./data",
 
+  // Persistence backend. Unset → the zero-config JSON store (single-tenant).
+  // Set → a Postgres store with per-tenant row scoping (multi-tenant safe).
+  databaseUrl: process.env.DATABASE_URL || "",
+
+  // Correctness passes (depth D3), off by default (each adds latency/cost on the
+  // web_search path). VERIFY_FINDINGS runs an adversarial refutation LLM pass that
+  // demotes unproven verdicts; CHECK_CITATIONS fetches cited pages (SSRF-guarded) and
+  // drops citations that don't support the claim.
+  verifyFindings: process.env.VERIFY_FINDINGS === "true",
+  checkCitations: process.env.CHECK_CITATIONS === "true",
+  citationTimeoutMs: num(process.env.CITATION_TIMEOUT_MS, 6000),
+
+  // Scheduled re-assessment (depth D5/EPIC-OPERATE). Off by default (0). When set,
+  // apps not assessed within reassessStaleHours are re-run in small batches, which
+  // triggers change detection + alerts.
+  reassessIntervalHours: num(process.env.REASSESS_INTERVAL_HOURS, 0),
+  reassessStaleHours: num(process.env.REASSESS_STALE_HOURS, 168),
+  reassessBatch: num(process.env.REASSESS_BATCH, 3),
+
+  // IdP pull-pollers (depth D4, off by default). Zero-touch discovery from sign-in
+  // logs using native fetch + stored API credentials (no new dependency). Okta uses
+  // an SSWS API token; Entra uses an app registration (client-credentials). Google is
+  // not included (its Reports API auth needs JWT signing / an extra dependency).
+  oktaLogUrl: (process.env.OKTA_LOG_URL || "").replace(/\/+$/, ""), // e.g. https://org.okta.com/api/v1/logs
+  oktaApiToken: process.env.OKTA_API_TOKEN || "",
+  entraTenantId: process.env.ENTRA_TENANT_ID || "",
+  entraClientId: process.env.ENTRA_CLIENT_ID || "",
+  entraClientSecret: process.env.ENTRA_CLIENT_SECRET || "",
+  idpPollIntervalMinutes: num(process.env.IDP_POLL_INTERVAL_MINUTES, 0),
+  // Google Workspace Reports API poller (service account + domain-wide delegation).
+  // Off unless all three are set. The PEM may arrive with escaped newlines.
+  googleSaClientEmail: process.env.GOOGLE_SA_CLIENT_EMAIL || "",
+  googleSaPrivateKey: (process.env.GOOGLE_SA_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
+  googleAdminSubject: process.env.GOOGLE_ADMIN_SUBJECT || "", // admin user to impersonate via DWD
+
   // Capability flag: when false, the catalog ingest/discovered routes are not
   // mounted and the dashboard hides the Discovered view (ship with or without
   // the shadow-discovery extension from one build).
   enableCatalog: process.env.ENABLE_CATALOG !== "false",
+
+  // OIDC is active only when fully configured (issuer + client + redirect + secret).
+  get oidcEnabled(): boolean {
+    return !!(this.oidcIssuer && this.oidcClientId && this.oidcClientSecret && this.oidcRedirectUri && this.sessionSecret);
+  },
 };
 
 export function assertStartup() {
@@ -84,6 +148,28 @@ export function assertStartup() {
   }
   if (config.llmBaseUrl && !safeBaseUrl(config.llmBaseUrl)) {
     throw new Error("LLM_BASE_URL must be a valid http(s) URL without embedded credentials.");
+  }
+  if (config.oktaLogUrl && !safeBaseUrl(config.oktaLogUrl)) {
+    throw new Error("OKTA_LOG_URL must be a valid http(s) URL without embedded credentials.");
+  }
+
+  // OIDC: all-or-nothing. A partial config is a footgun (a login route that
+  // half-works), so fail closed if some but not all required vars are set.
+  const oidcVars = {
+    OIDC_ISSUER: config.oidcIssuer, OIDC_CLIENT_ID: config.oidcClientId,
+    OIDC_CLIENT_SECRET: config.oidcClientSecret, OIDC_REDIRECT_URI: config.oidcRedirectUri,
+    SESSION_SECRET: config.sessionSecret,
+  };
+  const setKeys = Object.entries(oidcVars).filter(([, v]) => v).map(([k]) => k);
+  if (setKeys.length > 0 && setKeys.length < Object.keys(oidcVars).length) {
+    const missing = Object.entries(oidcVars).filter(([, v]) => !v).map(([k]) => k);
+    throw new Error(`Incomplete OIDC config: set all of ${Object.keys(oidcVars).join(", ")} or none. Missing: ${missing.join(", ")}.`);
+  }
+  if (config.oidcEnabled) {
+    if (!safeBaseUrl(config.oidcIssuer)) throw new Error("OIDC_ISSUER must be a valid http(s) URL without embedded credentials.");
+    if (config.isProd && config.sessionSecret.length < 32) {
+      throw new Error("SESSION_SECRET must be at least 32 characters in production.");
+    }
   }
 
   // Fail closed: no anonymous, unauthenticated API in production.

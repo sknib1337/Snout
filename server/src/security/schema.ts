@@ -28,7 +28,12 @@ const Finding = z.object({
   citations: z.array(Citation).max(3)
     .transform((arr) => arr.filter((c) => c.url || c.title))
     .catch([]).default([]),
-}).catch({ verdict: "unknown", standards: [], summary: "", citations: [] });
+  // Model-reported self-confidence (0..1), clamped. Optional / best-effort.
+  confidence: z.preprocess(
+    (v) => (typeof v === "number" && isFinite(v) ? Math.max(0, Math.min(1, v)) : undefined),
+    z.number().min(0).max(1).optional(),
+  ).catch(undefined),
+}).catch({ verdict: "unknown", standards: [], summary: "", citations: [], confidence: undefined });
 
 const CONTROL_KEYS: ControlKey[] = ["sso", "ulm", "entitlements", "riskSignals", "logout", "tokenRevocation"];
 

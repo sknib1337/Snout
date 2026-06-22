@@ -33,9 +33,12 @@ The model can't separate instructions from data, so we don't rely on it to.
 - Citation links are re-validated client-side and rendered `rel="noopener noreferrer nofollow"`.
 - Text sent to Slack/Teams runs through `forChat()` — escapes `& < >`, strips `@channel/@here/@everyone` — preventing link and broadcast-mention injection.
 
-### Authentication (API2) — fail closed
+### Authentication & RBAC (API2/API1) — fail closed
 - `/api/*` requires `Authorization: Bearer <API_TOKEN>` when a token is set; comparison is constant-time.
 - In **production the server refuses to start** without `API_TOKEN` unless `ALLOW_ANON=true` is explicitly set (for deployments behind an authenticating gateway). No anonymous access by default.
+- **Roles (EPIC-ENTERPRISE):** the admin `API_TOKEN` can mutate; an optional `API_VIEWER_TOKEN` is read-only — a `writeGuard` rejects any non-GET from a viewer (`403`), and the audit log is admin-only. Every mutating call is recorded to a tamper-evident-by-append **audit log** (who/role/tenant/path/outcome).
+- **OIDC login (optional):** when fully configured (`OIDC_ISSUER` + client id/secret + `OIDC_REDIRECT_URI` + `SESSION_SECRET`), users authenticate via your IdP using Authorization Code + **PKCE** with `state` and `nonce` checks. A short-lived signed (jose HS256) cookie carries the PKCE/state/nonce across the redirect; on success a **signed, httpOnly, `sameSite=lax`, `secure`-in-prod session cookie** (8 h) authorizes API calls alongside bearer tokens. Only **ID-token claims** are used for identity — no IdP access/refresh tokens are stored. Role is derived from a configurable claim (`OIDC_ADMIN_VALUE`); IdP/validation errors are never echoed to the browser. A partial OIDC config fails closed at startup, and `SESSION_SECRET` must be ≥32 chars in production.
+- **Per-tenant data isolation:** the audit log's `TENANT_ID` is one input; real isolation is enforced by the **Postgres store** (set `DATABASE_URL`). Every table has a leading `tenant` column and **every query is scoped `WHERE tenant = $1`**, so one tenant cannot read or write another's rows. The request tenant comes from the authenticated bearer's `x-tenant` (operator-trusted) or, for OIDC users, the **session's own tenant claim** (which `x-tenant` cannot override). The default JSON store is single-tenant; `server/db/schema.sql` documents the schema and an optional row-level-security backstop.
 
 ### Resource consumption & sensitive flows (API4/API6, LLM10)
 - Per-client rate limits (keyed by token hash or proxy-aware IP): a general `/api` bucket and a **stricter `/assess` bucket**, plus a separate webhook bucket.
@@ -50,6 +53,21 @@ The model can't separate instructions from data, so we don't rely on it to.
 - The LLM call sits behind a provider abstraction, but **`validateAgentOutput()` always runs** on every provider's output — the security schema can't be bypassed by switching providers. Prompt fencing, input sanitization, and injection telemetry stay in `agent.ts` and apply to all providers.
 - Only the Anthropic path has live `web_search`. With a provider that lacks it, assessments run with **reduced grounding**: a deterministic post-validation guard drops all citations and downgrades any unproven `supported`/`partial` verdict to `unknown` (recommendation capped at `Hold`), because a non-search model cannot have retrieved evidence and the schema does not verify citation provenance. The grounding mode is recorded on each assessment.
 - Provider error responses are never returned to the client or used as the thrown message (a third-party gateway could echo auth headers/keys); the upstream detail is logged server-side only. API keys, bearer tokens, and base URLs are never logged or exposed via `/health` or `/api/config`.
+
+### Discovery ingestion (webhooks)
+- Every discovery/catalog webhook (`/webhooks/catalog/:source`, `/webhooks/idp/:source`, `/webhooks/email`) is **HMAC-SHA256 verified** against `SNOUT_WEBHOOK_SECRET` over the raw body with a constant-time compare; routes **fail closed** (`501`) when the secret is unset and reject a bad/absent `x-snout-signature` (`401`). They share the rate-limited webhook bucket and the discovered routes are gated by `ENABLE_CATALOG`.
+- Discovery is **push-only**: Snout ingests logs/emails your own pipeline forwards. It stores **no IdP or mailbox credentials** and makes **no outbound calls** to ingest — so there is no new SSRF surface and no third-party secret to leak.
+- All ingested fields are length-clamped (`sanitizeField`) and the app key is validated against a strict domain regex; events without a resolvable domain are skipped (and counted), not stored. Per-app history is capped so a chatty sensor can't grow the store unbounded.
+- **IdP pull-pollers** (`OKTA_*` / `ENTRA_*` / `GOOGLE_*`, off by default) are the other outbound path: they call only your configured IdP (`OKTA_LOG_URL` is `safeBaseUrl()`-validated at startup; Entra uses fixed Microsoft hosts; Google uses fixed `oauth2.googleapis.com` / `admin.googleapis.com` hosts). The Okta SSWS token, Entra client secret, and Google service-account key live in env, are sent only to those hosts, and are never logged. Google auth uses a short-lived service-account JWT (RS256, signed locally via `jose`) exchanged for a **read-only** Reports scope under domain-wide delegation. Pulled records run through the same adapters + `sanitizeUpsert` as the push path.
+
+### Assessment correctness passes (depth D3, off by default)
+- **Refutation pass (`VERIFY_FINDINGS`)** is an internal LLM call over the model's own findings — no new external surface; output is parsed defensively and only ever *demotes* verdicts deterministically (never upgrades), and never touches human-verified KB facts.
+- **Citation grounding (`CHECK_CITATIONS`)** is the one place Snout fetches an untrusted URL. It is SSRF-guarded: the URL passes `safeUrl()` (public http(s) only, private/loopback/metadata blocked) **before** the fetch, the fetch uses `redirect: "manual"` so a 3xx can't bounce it to a private host, and it is bounded by a timeout and a response-size cap. It only *drops* citations; an unfetchable page is kept (no false drops). Both passes are off unless explicitly enabled.
+
+### Knowledge base trust boundary (EPIC-MOAT)
+- The knowledge base (`kb/` repo files + Store overrides) is trusted *by provenance*: repo files land via reviewed PRs and overrides come from the **authenticated** `POST /api/kb/:key/:control`. Even so, KB content is treated as **data, not instructions**: facts are injected into the agent **structurally** (verdict + standards + a sanitized one-line summary), every KB citation URL is re-checked with `safeUrl()`, and KB text can never alter the model's instructions.
+- **Only human-verified facts** (`source: "human"`) are injected as trusted priors; `seed`/`agent` facts are candidates surfaced for review, never auto-trusted. `validateAgentOutput()` still runs on the model output and remains unbypassable; the deterministic transparent-mean score is computed server-side from the merged result.
+- Loading is defensive: a malformed or schema-invalid KB file is skipped (not fatal), all fields are length-clamped, and per-app proposal writes never overwrite a human-verified fact.
 
 ### Security misconfiguration (API8)
 - `helmet` security headers on the API; `x-powered-by` disabled; strict CORS allowlist (`WEB_ORIGIN`).
@@ -75,7 +93,7 @@ The model can't separate instructions from data, so we don't rely on it to.
 
 - Prompt injection cannot be fully eliminated — it's a property of LLMs. Verdicts are **evidence-backed research, not sign-off**; a human approves, and the auditable score + citations exist precisely so a reviewer can catch a manipulated result.
 - The LLM base URL is trusted config and is exempt from the SSRF host block, so anyone who can already set the server's environment (insider / leaked deploy creds) could point it at an internal host or exfiltrate the provider key. This is an accepted trade-off for supporting internal gateways; it is not reachable from the API, since the base URL is never derived from request data.
-- The default JSON store is single-node, last-write-wins.
+- The default JSON store is single-node, last-write-wins, and single-tenant. Set `DATABASE_URL` to use the Postgres store for durability and per-tenant isolation.
 - Teams outgoing webhooks are synchronous (~5 s); long assessments return "started" rather than a final card (see README).
 
 ## Reporting a vulnerability

@@ -1,0 +1,13 @@
+{
+  "vendor": "Atlassian",
+  "domain": "atlassian.com",
+  "updatedAt": "2026-06-21",
+  "controls": {
+    "sso": { "verdict": "supported", "confidence": 0.85, "standards": ["SAML 2.0", "OIDC"], "summary": "SAML/OIDC SSO via Atlassian Guard (formerly Access) — an add-on subscription.", "citations": [{ "title": "Atlassian Support", "url": "https://support.atlassian.com" }, { "title": "The SSO Wall of Shame", "url": "https://sso.tax/" }], "source": "human", "verifiedBy": "seed-maintainer", "verifiedAt": "2026-06-21" },
+    "ulm": { "verdict": "supported", "confidence": 0.8, "standards": ["SCIM 2.0"], "summary": "SCIM user provisioning/deprovisioning via Atlassian Guard.", "citations": [{ "title": "Atlassian Support", "url": "https://support.atlassian.com" }], "source": "human", "verifiedBy": "seed-maintainer", "verifiedAt": "2026-06-21" },
+    "entitlements": { "verdict": "partial", "confidence": 0.5, "standards": ["SCIM groups"], "summary": "Group sync via SCIM; product/space roles managed in-product.", "citations": [{ "title": "Atlassian Support", "url": "https://support.atlassian.com" }], "source": "seed" },
+    "riskSignals": { "verdict": "unknown", "confidence": 0.3, "standards": [], "summary": "No documented CAEP/SSF support.", "citations": [], "source": "seed" },
+    "logout": { "verdict": "partial", "confidence": 0.45, "standards": ["Session management"], "summary": "Session duration controls via Guard; SLO not documented.", "citations": [{ "title": "Atlassian Support", "url": "https://support.atlassian.com" }], "source": "seed" },
+    "tokenRevocation": { "verdict": "partial", "confidence": 0.45, "standards": ["OAuth 2.0", "API tokens"], "summary": "API tokens revocable; OAuth app management.", "citations": [{ "title": "Atlassian Support", "url": "https://support.atlassian.com" }], "source": "seed" }
+  }
+}

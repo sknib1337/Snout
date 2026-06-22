@@ -1,0 +1,10 @@
+[
+  { "name": "Calendly", "url": "https://calendly.com" },
+  { "name": "Airtable", "url": "https://airtable.com" },
+  { "name": "Miro", "url": "https://miro.com" },
+  { "name": "Box", "url": "https://box.com" },
+  { "name": "Monday.com", "url": "https://monday.com" },
+  { "name": "Linear", "url": "https://linear.app" },
+  { "name": "Loom", "url": "https://loom.com" },
+  { "name": "Webflow", "url": "https://webflow.com" }
+]

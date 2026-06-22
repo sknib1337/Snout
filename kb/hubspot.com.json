@@ -1,0 +1,13 @@
+{
+  "vendor": "HubSpot",
+  "domain": "hubspot.com",
+  "updatedAt": "2026-06-21",
+  "controls": {
+    "sso": { "verdict": "supported", "confidence": 0.75, "standards": ["SAML 2.0"], "summary": "SAML SSO available on higher tiers / as an add-on.", "citations": [{ "title": "HubSpot Knowledge Base", "url": "https://knowledge.hubspot.com" }, { "title": "The SSO Wall of Shame", "url": "https://sso.tax/" }], "source": "seed" },
+    "ulm": { "verdict": "partial", "confidence": 0.5, "standards": ["SCIM 2.0"], "summary": "SCIM provisioning is limited / tier-dependent.", "citations": [{ "title": "HubSpot Knowledge Base", "url": "https://knowledge.hubspot.com" }], "source": "seed" },
+    "entitlements": { "verdict": "partial", "confidence": 0.4, "standards": ["RBAC"], "summary": "Permission sets/teams managed in-product; limited IdP group mapping.", "citations": [{ "title": "HubSpot Knowledge Base", "url": "https://knowledge.hubspot.com" }], "source": "seed" },
+    "riskSignals": { "verdict": "unknown", "confidence": 0.3, "standards": [], "summary": "No documented CAEP/SSF support.", "citations": [], "source": "seed" },
+    "logout": { "verdict": "unknown", "confidence": 0.3, "standards": [], "summary": "Session controls available; SLO not documented.", "citations": [], "source": "seed" },
+    "tokenRevocation": { "verdict": "partial", "confidence": 0.4, "standards": ["OAuth 2.0", "API keys"], "summary": "Private app tokens / API keys revocable; OAuth app management.", "citations": [{ "title": "HubSpot Knowledge Base", "url": "https://knowledge.hubspot.com" }], "source": "seed" }
+  }
+}

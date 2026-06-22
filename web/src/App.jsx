@@ -9,7 +9,7 @@ import {
   Layers, ScanSearch, ChevronRight, Sparkles, ListChecks, ShieldAlert,
   LayoutDashboard, Boxes, Clock, TerminalSquare, Radar as RadarIcon, Trash2,
 } from "lucide-react";
-import { assess as apiAssess, listAssessments, listDiscovered, assessDiscovered, deleteDiscovered, getFeatures } from "./api";
+import { assess as apiAssess, listAssessments, listDiscovered, assessDiscovered, deleteDiscovered, getFeatures, verifyControl, listAlerts, listKb, getAuth, loginUrl, logout } from "./api";
 
 /* ============================================================ *
  * Snout — Critical Enterprise SaaS Controls console
@@ -216,7 +216,7 @@ function Logo({ compact }) {
       </div>
       <div className="leading-tight">
         <div className="disp brandtext" style={{ fontSize: compact ? 16 : 18, fontWeight: 800 }}>Snout</div>
-        <div className="mono txt-secondary" style={{ fontSize: 9.5, letterSpacing: "0.18em", marginTop: 2, textTransform: "uppercase" }}>SaaS Controls</div>
+        <div className="mono txt-secondary" style={{ fontSize: 9.5, letterSpacing: "0.18em", marginTop: 2, textTransform: "uppercase" }}>IPSIE Controls</div>
       </div>
     </div>
   );
@@ -377,7 +377,7 @@ function EmptyState({ onNew }) {
       <div className="disp" style={{ fontSize: 18, fontWeight: 600, marginTop: 14, color: C.on }}>No assessments yet</div>
       <p className="txt-var mx-auto" style={{ fontSize: 13, marginTop: 6, maxWidth: 440, lineHeight: 1.6 }}>
         Name any SaaS tool — in the form, the sidebar terminal, or the search bar — and the agent researches its identity posture
-        against the six critical enterprise SaaS controls, cites its sources, and drafts a governance verdict.
+        against the six IPSIE-aligned identity controls, cites its sources, and drafts a governance verdict.
       </p>
       <button onClick={onNew} className="btn-primary mx-auto mt-5" style={{ padding: "0.55rem 1rem", fontSize: 11 }}><Plus className="w-4 h-4" /> Run first assessment</button>
     </div>
@@ -432,7 +432,7 @@ function AssessForm({ onRun, busy, error, prefill }) {
   return (
     <div className="max-w-2xl mx-auto panel p-6">
       <h2 className="disp" style={{ fontSize: 20, fontWeight: 600, color: C.on }}>Assess a SaaS tool</h2>
-      <p className="txt-var" style={{ fontSize: 13, marginTop: 6, lineHeight: 1.6 }}>The agent searches the live web — vendor docs, trust centers, and the OpenID Foundation — then scores the six critical enterprise SaaS controls and drafts a governance verdict with citations.</p>
+      <p className="txt-var" style={{ fontSize: 13, marginTop: 6, lineHeight: 1.6 }}>The agent searches the live web — vendor docs, trust centers, and the OpenID Foundation — then scores the six IPSIE-aligned identity controls and drafts a governance verdict with citations.</p>
       <div className="mt-5 space-y-4">
         <Field label="Application name" required><input value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} placeholder="e.g. Notion" disabled={busy} className="inp" style={{ padding: "0.55rem 0.75rem" }} /></Field>
         <div className="grid sm:grid-cols-2 gap-4">
@@ -454,7 +454,30 @@ function AssessForm({ onRun, busy, error, prefill }) {
 
 /* --------------------------- Detail --------------------------- */
 
-function Detail({ a, onBack, onReassess }) {
+const VERDICT_OPTS = ["supported", "partial", "unsupported", "unknown"];
+
+// Inline human verify/override for one control (writes to the knowledge base).
+function ControlVerify({ a, controlKey, current, onVerify }) {
+  const [v, setV] = useState(current || "supported");
+  const [saving, setSaving] = useState(false);
+  if (!onVerify) return null;
+  const save = async () => {
+    setSaving(true);
+    await onVerify(a.kbKey || a.vendor || a.app, controlKey, v, a.vendor);
+    setSaving(false);
+  };
+  return (
+    <div className="flex items-center gap-1.5 mt-2.5">
+      <span className="caps txt-dim" style={{ fontSize: 9 }}>Verify</span>
+      <select value={v} onChange={(e) => setV(e.target.value)} className="inp" style={{ padding: "0.15rem 0.35rem", fontSize: 10, width: "auto" }}>
+        {VERDICT_OPTS.map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+      <button onClick={save} disabled={saving} className="btn-ghost" style={{ padding: "0.2rem 0.5rem", fontSize: 10 }}>{saving ? "…" : "Save to KB"}</button>
+    </div>
+  );
+}
+
+function Detail({ a, onBack, onReassess, onVerify }) {
   const radarData = CAPS.map((c) => ({ cap: c.short, value: verdictOf(a.capabilities?.[c.key]?.verdict).weight }));
   const rc = recChip(a.recommendation); const readiness = readinessOf(a.score); const band = scoreColor(a.score);
   return (
@@ -508,7 +531,7 @@ function Detail({ a, onBack, onReassess }) {
       </div>
 
       <div>
-        <h3 className="caps txt-var mb-2.5">Critical enterprise SaaS controls</h3>
+        <h3 className="caps txt-var mb-2.5">IPSIE-aligned identity controls</h3>
         <div className="grid md:grid-cols-2 gap-3">
           {CAPS.map((c) => {
             const cap = a.capabilities?.[c.key] || {}; const Icon = c.icon;
@@ -519,11 +542,19 @@ function Detail({ a, onBack, onReassess }) {
                     <div className="grid place-items-center" style={{ width: 32, height: 32, borderRadius: 6, background: C.scHigh }}><Icon className="w-4 h-4 txt-var" /></div>
                     <div><div className="disp" style={{ fontSize: 14, fontWeight: 600, color: C.on }}>{c.label}</div><div className="mono txt-dim" style={{ fontSize: 10.5 }}>{c.standard}</div></div>
                   </div>
-                  <VerdictPill verdict={cap.verdict} />
+                  <div className="flex flex-col items-end gap-1">
+                    <VerdictPill verdict={cap.verdict} />
+                    <div className="flex items-center gap-1">
+                      {cap.source === "kb-verified" && <span className="pill pill-green" style={{ fontSize: 8.5, padding: "0.05rem 0.35rem" }}>✓ KB verified</span>}
+                      {cap.source === "kb-proposed" && <span className="pill pill-gray" style={{ fontSize: 8.5, padding: "0.05rem 0.35rem" }}>KB proposed</span>}
+                      {typeof cap.confidence === "number" && <span className="mono txt-dim" style={{ fontSize: 9.5 }}>{Math.round(cap.confidence * 100)}%</span>}
+                    </div>
+                  </div>
                 </div>
                 {cap.standards?.length > 0 && <div className="flex flex-wrap gap-1 mt-2.5">{cap.standards.map((s, i) => <span key={i} className="chip">{s}</span>)}</div>}
                 <p className="txt-var" style={{ fontSize: 13.5, marginTop: 8, lineHeight: 1.6 }}>{cap.summary || "No evidence captured."}</p>
                 <Citations items={cap.citations} />
+                <ControlVerify a={a} controlKey={c.key} current={cap.verdict} onVerify={onVerify} />
               </div>
             );
           })}
@@ -762,9 +793,12 @@ function Discovered({ apps, busyDomain, onAssess, onOpen, onDelete }) {
       <div className="panel p-12 text-center">
         <div className="mx-auto grid place-items-center" style={{ width: 52, height: 52, borderRadius: 10, background: "rgba(173,198,255,0.08)" }}><RadarIcon className="w-6 h-6 txt-primary" /></div>
         <div className="disp" style={{ fontSize: 18, fontWeight: 600, marginTop: 14, color: C.on }}>No discovered apps yet</div>
-        <p className="txt-var mx-auto" style={{ fontSize: 13, marginTop: 6, maxWidth: 460, lineHeight: 1.6 }}>
-          Install the Snout browser extension, set your corporate IdP in its options, then click <b>Sync</b>.
-          Apps you authenticate to — and how (SSO, social, local password, OAuth grants) — show up here for triage and one-click assessment.
+        <p className="txt-var mx-auto" style={{ fontSize: 13, marginTop: 6, maxWidth: 480, lineHeight: 1.6 }}>
+          Feed any sensor — the Snout browser extension (<b>Sync</b>), your IdP sign-in logs
+          (Okta / Entra / Google → <span className="mono">/webhooks/idp/:source</span>), or forwarded
+          signup emails (<span className="mono">/webhooks/email</span>). Apps, how you authenticate
+          (SSO, social, local password, OAuth grants), and when they were seen show up here for triage
+          and one-click assessment.
         </p>
       </div>
     );
@@ -795,11 +829,23 @@ function Discovered({ apps, busyDomain, onAssess, onOpen, onDelete }) {
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                     <span className="pill" style={{ background: "transparent", color: p.color, border: `1px solid ${p.color}66` }}>{p.label}</span>
+                    {a.posture?.findings?.length > 0 && (() => {
+                      const rs = a.posture.riskScore || 0;
+                      const col = rs >= 40 ? C.error : rs >= 20 ? C.tertiary : C.secondary;
+                      return <span className="pill" title={a.posture.findings.map((x) => x.title).join(" · ")} style={{ background: `${col}1a`, color: col, border: `1px solid ${col}55` }}>⚠ risk {rs} · {a.posture.findings.length}</span>;
+                    })()}
                     {METHOD_BADGES.filter((m) => a.methods?.[m.key]).map((m) => <span key={m.key} className={`pill ${m.cls}`}>{m.label}</span>)}
                   </div>
                   {grant?.scopes?.length > 0 && (
                     <div className="mono txt-dim" style={{ fontSize: 10.5, marginTop: 5, lineHeight: 1.5, wordBreak: "break-word" }}>↳ {grant.idp} · scopes: {grant.scopes.join(" ")}</div>
                   )}
+                  <div className="flex flex-wrap items-center gap-1.5 mono txt-dim" style={{ fontSize: 10, marginTop: 5 }}>
+                    {(a.sources || []).map((s) => <span key={s} className="chip" style={{ padding: "0.05rem 0.4rem", fontSize: 9.5 }}>{s}</span>)}
+                    {a.events?.length > 0 && (() => {
+                      const last = [...a.events].sort((x, y) => y.ts - x.ts)[0];
+                      return <span title={`${a.events.length} event(s)`}>· last: {last.source} {last.kind} · {new Date(last.ts || a.lastSeen).toLocaleDateString()}</span>;
+                    })()}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {a.assessment
@@ -812,6 +858,93 @@ function Discovered({ apps, busyDomain, onAssess, onOpen, onDelete }) {
           })}
         </div>
       </div>
+    </div>
+  );
+}
+
+/* --------------------------- Knowledge base (verification queue) --------------------------- */
+
+const STALE_MS = 180 * 864e5;
+
+function KbRow({ v, c, saving, onVerify }) {
+  const f = v.controls?.[c.key];
+  const [verdict, setVerdict] = useState(f?.verdict || "supported");
+  const stale = f?.source === "human" && f?.verifiedAt && Date.now() - new Date(f.verifiedAt).getTime() > STALE_MS;
+  const busy = saving === v.domain + c.key;
+  const badge = !f ? null
+    : f.source === "human" ? { t: "✓ verified", cls: "pill-green" }
+    : f.source === "agent" ? { t: "proposed", cls: "pill-blue" }
+    : { t: "seed", cls: "pill-gray" };
+  return (
+    <div className="flex items-center gap-2 px-4 py-2.5 border-b" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+      <div className="shrink-0" style={{ width: 150 }}>
+        <div className="disp" style={{ fontSize: 13, fontWeight: 600, color: C.on }}>{c.label}</div>
+        <div className="mono txt-dim" style={{ fontSize: 10 }}>{c.standard}</div>
+      </div>
+      <div className="flex-1 flex items-center gap-1.5 flex-wrap">
+        <VerdictPill verdict={f?.verdict} />
+        {badge && <span className={`pill ${badge.cls}`} style={{ fontSize: 9, padding: "0.05rem 0.35rem" }}>{badge.t}</span>}
+        {typeof f?.confidence === "number" && <span className="mono txt-dim" style={{ fontSize: 9.5 }}>{Math.round(f.confidence * 100)}%</span>}
+        {stale && <span className="pill pill-amber" style={{ fontSize: 9, padding: "0.05rem 0.35rem" }}>stale</span>}
+      </div>
+      <div className="flex items-center gap-1.5 shrink-0">
+        <select value={verdict} onChange={(e) => setVerdict(e.target.value)} className="inp" style={{ padding: "0.15rem 0.35rem", fontSize: 10, width: "auto" }}>
+          {VERDICT_OPTS.map((o) => <option key={o} value={o}>{o}</option>)}
+        </select>
+        <button onClick={() => onVerify(v.domain, v.vendor, c.key, verdict)} disabled={busy} className="btn-ghost" style={{ padding: "0.2rem 0.5rem", fontSize: 10 }}>{busy ? "…" : "Verify"}</button>
+      </div>
+    </div>
+  );
+}
+
+function KnowledgeView() {
+  const [vendors, setVendors] = useState(null);
+  const [saving, setSaving] = useState(null);
+  const load = useCallback(async () => { try { setVendors(await listKb()); } catch { setVendors([]); } }, []);
+  useEffect(() => { load(); }, [load]);
+
+  if (vendors === null) return <div className="py-24 grid place-items-center txt-dim"><Loader2 className="w-6 h-6 spin" /></div>;
+
+  const verify = async (domain, vendor, control, verdict) => {
+    setSaving(domain + control);
+    try { await verifyControl(domain, control, { verdict, vendor, verifiedBy: "dashboard" }); await load(); }
+    catch (e) { alert(e.message || "Verify failed"); }
+    finally { setSaving(null); }
+  };
+
+  let pending = 0, stale = 0;
+  vendors.forEach((v) => CAPS.forEach((c) => {
+    const f = v.controls?.[c.key]; if (!f) return;
+    if (f.source !== "human") pending++;
+    else if (f.verifiedAt && Date.now() - new Date(f.verifiedAt).getTime() > STALE_MS) stale++;
+  }));
+
+  if (!vendors.length) return (
+    <div className="panel p-12 text-center">
+      <div className="mx-auto grid place-items-center" style={{ width: 52, height: 52, borderRadius: 10, background: "rgba(173,198,255,0.08)" }}><ListChecks className="w-6 h-6 txt-primary" /></div>
+      <div className="disp" style={{ fontSize: 18, fontWeight: 600, marginTop: 14, color: C.on }}>Knowledge base is empty</div>
+      <p className="txt-var mx-auto" style={{ fontSize: 13, marginTop: 6, maxWidth: 460, lineHeight: 1.6 }}>
+        Assess apps, or run <span className="mono">npm run seed:kb</span> to batch-generate proposals. Verified facts here are reused as trusted priors in future assessments.
+      </p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-3">
+        <KpiTile label="KB vendors" value={vendors.length} sub="in the knowledge base" Icon={ListChecks} />
+        <KpiTile label="Awaiting verification" value={pending} sub="agent / seed facts" subColor={C.tertiary} Icon={AlertTriangle} />
+        <KpiTile label="Stale verified" value={stale} sub="older than 180 days" subColor={C.error} Icon={Clock} />
+      </div>
+      {vendors.map((v) => (
+        <div key={v.domain} className="panel">
+          <div className="px-4 py-3 border-b hair flex items-center gap-2">
+            <span className="disp" style={{ fontWeight: 600, fontSize: 15, color: C.on }}>{v.vendor}</span>
+            <span className="mono txt-dim" style={{ fontSize: 11 }}>{v.domain}</span>
+          </div>
+          {CAPS.map((c) => <KbRow key={c.key} v={v} c={c} saving={saving} onVerify={verify} />)}
+        </div>
+      ))}
     </div>
   );
 }
@@ -848,9 +981,10 @@ const NAV = [
   { key: "command", label: "Command Center", icon: LayoutDashboard },
   { key: "catalog", label: "Assessments", icon: Boxes },
   { key: "discovered", label: "Discovered", icon: RadarIcon },
+  { key: "knowledge", label: "Knowledge", icon: ListChecks },
   { key: "integrations", label: "Integrations", icon: Network },
 ];
-const TITLES = { command: "Command Center", catalog: "Assessments", discovered: "Discovered Apps", assess: "New Assessment", integrations: "Integrations" };
+const TITLES = { command: "Command Center", catalog: "Assessments", discovered: "Discovered Apps", knowledge: "Knowledge Base", assess: "New Assessment", integrations: "Integrations" };
 
 export default function App() {
   const [view, setView] = useState("command");
@@ -865,13 +999,21 @@ export default function App() {
   const [discovered, setDiscovered] = useState([]);
   const [busyDomain, setBusyDomain] = useState(null);
   const [features, setFeatures] = useState({ catalog: true });
+  const [alerts, setAlerts] = useState([]);
+  const [auth, setAuth] = useState({ oidcEnabled: false, authenticated: true });
 
   const refreshDiscovered = useCallback(async () => {
     try { setDiscovered(await listDiscovered()); } catch { /* offline */ }
+    try { setAlerts(await listAlerts()); } catch { /* offline */ }
   }, []);
 
   useEffect(() => {
     (async () => {
+      const a = await getAuth();
+      setAuth(a);
+      // When OIDC is enabled but no valid session exists, stop here and show the
+      // sign-in gate rather than firing API calls that would 401.
+      if (a.oidcEnabled && !a.authenticated) { setLoaded(true); return; }
       const f = await getFeatures();
       setFeatures(f);
       try {
@@ -910,6 +1052,17 @@ export default function App() {
     try { await deleteDiscovered(domain); await refreshDiscovered(); } catch { /* ignore */ }
   }, [refreshDiscovered]);
 
+  const handleVerify = useCallback(async (key, control, verdict, vendor) => {
+    try {
+      await verifyControl(key, control, { verdict, vendor });
+      setAssessments((prev) => prev.map((a) => {
+        if (a.id !== currentId) return a;
+        const capabilities = { ...a.capabilities, [control]: { ...(a.capabilities?.[control] || {}), verdict, source: "kb-verified", confidence: 1 } };
+        return { ...a, capabilities, score: computeScore(capabilities) };
+      }));
+    } catch (e) { alert(e.message || "Verify failed"); }
+  }, [currentId]);
+
   const current = assessments.find((a) => a.id === currentId);
   const goNew = (pf = null) => { setPrefill(pf); setError(""); setView("assess"); };
   const open = (id) => { setCurrentId(id); setView("detail"); };
@@ -923,6 +1076,28 @@ export default function App() {
 
   const title = view === "detail" && current ? current.app : (TITLES[view] || "Snout");
   const navActive = (key) => view === key || ((view === "detail" || view === "assess") && key === "command");
+
+  // OIDC sign-in gate: when login is enabled and there's no valid session, show a
+  // sign-in screen instead of the app (which would only 401).
+  if (auth.oidcEnabled && !auth.authenticated) {
+    const failed = new URLSearchParams(window.location.search).get("login") === "failed";
+    return (
+      <div className="ob">
+        <Style />
+        <div className="ob-bg" aria-hidden="true" />
+        <ShaderBG />
+        <div className="min-h-screen grid place-items-center p-6">
+          <div className="panel p-8 text-center" style={{ maxWidth: 380 }}>
+            <div className="mb-5 flex justify-center"><Logo /></div>
+            <h2 className="disp mb-2" style={{ fontSize: 18, fontWeight: 600, color: C.on }}>Sign in to Snout</h2>
+            <p className="txt-var mb-6" style={{ fontSize: 13 }}>Authenticate with your identity provider to continue.</p>
+            {failed && <p className="mb-4" style={{ fontSize: 12.5, color: C.error }}>Sign-in failed or was cancelled. Please try again.</p>}
+            <a href={loginUrl()} className="btn-primary w-full" style={{ justifyContent: "center", padding: "0.6rem" }}>Sign in with SSO</a>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="ob">
@@ -949,6 +1124,7 @@ export default function App() {
             {features.catalog && (
               <NavItem icon={RadarIcon} label="Discovered" active={navActive("discovered")} onClick={() => setView("discovered")} indicator={(() => { const sh = discovered.filter((d) => !d.methods?.sso).length; return sh ? <span className="badge" style={{ background: "rgba(255,180,171,0.12)", color: C.error, borderColor: "rgba(255,180,171,0.25)" }}>{sh}</span> : (discovered.length ? <span className="badge">{discovered.length}</span> : <span className="dot" style={{ background: C.outlineVar }} />); })()} />
             )}
+            <NavItem icon={ListChecks} label="Knowledge" active={navActive("knowledge")} onClick={() => setView("knowledge")} indicator={<span className="dot" style={{ background: C.outlineVar }} />} />
             <NavItem icon={Network} label="Integrations" active={navActive("integrations")} onClick={() => setView("integrations")} indicator={<span className="badge">5</span>} />
           </nav>
           <div className="px-4 mt-auto space-y-4">
@@ -970,10 +1146,25 @@ export default function App() {
               <input value={topSearch} onChange={(e) => setTopSearch(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submitTopSearch()} placeholder="Search or assess an app…" className="inp" style={{ padding: "0.45rem 2rem 0.45rem 2.25rem" }} />
             </div>
             <div className="flex items-center gap-2 txt-secondary shrink-0"><span className="dot pulse-green" style={{ background: C.secondary }} /><span className="caps">System Healthy</span></div>
+            {auth.oidcEnabled && auth.authenticated && (
+              <div className="flex items-center gap-2 shrink-0 pl-3 border-l hair">
+                {auth.email && <span className="txt-dim" style={{ fontSize: 11 }} title={`Role: ${auth.role} · Tenant: ${auth.tenant}`}>{auth.email}</span>}
+                <button onClick={async () => { await logout(); window.location.href = window.location.pathname; }} className="caps txt-var" style={{ fontSize: 9, padding: "0.3rem 0.55rem", border: `1px solid ${C.outlineVar}`, borderRadius: 4 }}>Sign out</button>
+              </div>
+            )}
           </header>
 
           <div className="p-4 sm:p-6">
             <div className="max-w-6xl mx-auto">
+              {alerts.length > 0 && (
+                <div className="panel p-3 mb-4 flex items-center gap-3" style={{ borderColor: `${C.error}40`, background: `${C.error}0d` }}>
+                  <ShieldAlert className="w-4 h-4 shrink-0" style={{ color: C.error }} />
+                  <div className="min-w-0 flex-1">
+                    <span className="disp" style={{ fontSize: 13, fontWeight: 600, color: C.on }}>{alerts.length} monitoring alert{alerts.length > 1 ? "s" : ""}</span>
+                    <span className="txt-var" style={{ fontSize: 12.5, marginLeft: 8 }}>{alerts[0].title}</span>
+                  </div>
+                </div>
+              )}
               {!loaded ? (
                 <div className="py-24 grid place-items-center txt-dim"><Loader2 className="w-6 h-6 spin" /></div>
               ) : view === "command" ? (
@@ -984,10 +1175,12 @@ export default function App() {
                 <Discovered apps={discovered} busyDomain={busyDomain} onAssess={handleAssessDiscovered} onOpen={open} onDelete={handleDeleteDiscovered} />
               ) : view === "assess" ? (
                 <AssessForm onRun={handleRun} busy={busy} error={error} prefill={prefill} />
+              ) : view === "knowledge" ? (
+                <KnowledgeView />
               ) : view === "integrations" ? (
                 <Integrations onAssessCatalog={(app) => goNew({ name: app.name, vendor: app.vendor })} />
               ) : view === "detail" && current ? (
-                <Detail a={current} onBack={() => setView("command")} onReassess={() => goNew({ name: current.app, vendor: current.vendor })} />
+                <Detail a={current} onBack={() => setView("command")} onReassess={() => goNew({ name: current.app, vendor: current.vendor })} onVerify={handleVerify} />
               ) : (
                 <CommandCenter assessments={assessments} onOpen={open} onNew={() => goNew()} goCatalog={() => setView("catalog")} />
               )}
