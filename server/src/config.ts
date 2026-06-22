@@ -56,6 +56,10 @@ export const config = {
 
   dataDir: process.env.DATA_DIR || "./data",
 
+  // Persistence backend. Unset → the zero-config JSON store (single-tenant).
+  // Set → a Postgres store with per-tenant row scoping (multi-tenant safe).
+  databaseUrl: process.env.DATABASE_URL || "",
+
   // Correctness passes (depth D3), off by default (each adds latency/cost on the
   // web_search path). VERIFY_FINDINGS runs an adversarial refutation LLM pass that
   // demotes unproven verdicts; CHECK_CITATIONS fetches cited pages (SSRF-guarded) and

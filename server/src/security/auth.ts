@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { randomUUID } from "crypto";
 import { config } from "../config";
 import { store } from "../store";
+import { runAsTenant } from "../tenant";
 import { sanitizeField } from "./sanitize";
 
 export type Role = "admin" | "viewer";
@@ -32,6 +33,16 @@ export function apiAuth(req: Request, res: Response, next: NextFunction) {
   if (timingSafe(provided, `Bearer ${config.apiToken}`)) { (req as any).role = "admin" as Role; return next(); }
   if (config.viewerToken && timingSafe(provided, `Bearer ${config.viewerToken}`)) { (req as any).role = "viewer" as Role; return next(); }
   return res.status(401).json({ error: "Unauthorized" });
+}
+
+/**
+ * Run the rest of the request inside the resolved tenant's async context so the
+ * store facade scopes every read/write to that tenant (Postgres backend). Must be
+ * mounted AFTER apiAuth, which resolves req.tenant. In the JSON (single-tenant)
+ * backend this is a no-op beyond setting the context.
+ */
+export function withTenant(req: Request, _res: Response, next: NextFunction) {
+  runAsTenant((req as any).tenant || config.tenantId, () => next());
 }
 
 /** Block mutating methods for the read-only viewer role. */
