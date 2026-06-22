@@ -104,8 +104,17 @@ function applyReducedGrounding(clean: CleanAssessment): CleanAssessment {
   return { ...clean, capabilities, recommendation };
 }
 
+export interface AssessOptions {
+  // When false, the knowledge base is ignored entirely: no verified priors are
+  // injected, no KB facts override the model, and no proposals are written. Used by
+  // the eval baseline to measure the model's accuracy WITHOUT the KB, so the KB's
+  // lift can be quantified. Defaults to true (normal behavior, unchanged).
+  useKb?: boolean;
+}
+
 /** Run a full assessment. Inputs are sanitized and fenced; output is validated. */
-export async function assessApp(rawInput: AssessInput): Promise<Assessment> {
+export async function assessApp(rawInput: AssessInput, opts: AssessOptions = {}): Promise<Assessment> {
+  const useKb = opts.useKb !== false;
   // Select the LLM provider (fails closed if its required config is missing).
   const provider = getProvider();
 
@@ -134,7 +143,7 @@ export async function assessApp(rawInput: AssessInput): Promise<Assessment> {
   // the gaps (EPIC-MOAT). Resolved key (a domain or vendor slug) ties the result
   // back to the KB for verify/override.
   const kbKey = kbKeyFor({ url, vendor, name });
-  const verified = await getVerifiedFacts(kbKey);
+  const verified = useKb ? await getVerifiedFacts(kbKey) : {};
 
   // 3c) Providers without live web search can't produce citation-backed evidence,
   // so steer them toward "unknown" (and enforce it deterministically in step 5b).
@@ -155,7 +164,9 @@ export async function assessApp(rawInput: AssessInput): Promise<Assessment> {
   // (they win even under reduced grounding, since they ARE citation-backed), and
   // every control gets provenance + confidence. Then record the agent's non-KB
   // findings as unverified KB proposals so the knowledge base compounds.
-  const { vendor: kbVendor, controls: allFacts } = await getFacts(kbKey);
+  const { vendor: kbVendor, controls: allFacts } = useKb
+    ? await getFacts(kbKey)
+    : { vendor: "", controls: {} as Partial<Record<ControlKey, ControlFact>> };
   const mergedCaps = {} as Record<ControlKey, ControlFinding>;
   for (const key of Object.keys(clean.capabilities) as ControlKey[]) {
     const v = verified[key];
@@ -190,7 +201,8 @@ export async function assessApp(rawInput: AssessInput): Promise<Assessment> {
   }
 
   // 5c-iii) Record the (now verified) agent findings as unverified KB proposals.
-  if (grounding === "web_search") {
+  // Skipped when useKb is false so a baseline eval run never writes to the KB.
+  if (useKb && grounding === "web_search") {
     try { await recordProposals(kbKey, clean.vendor || kbVendor || vendor, mergedCaps); } catch { /* best-effort */ }
   }
 

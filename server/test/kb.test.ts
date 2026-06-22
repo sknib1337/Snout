@@ -55,8 +55,11 @@ describe("KB load + merge", () => {
 
 describe("eval harness (KB-only, deterministic)", () => {
   it("measures accuracy + depth metrics against the labeled benchmark", async () => {
-    const m = await evalmod.evaluate(evalmod.loadBenchmark(), evalmod.kbPredict);
-    expect(m.total).toBe(78);
+    const cases = evalmod.loadBenchmark();
+    const m = await evalmod.evaluate(cases, evalmod.kbPredict);
+    // Robust to benchmark growth: total = sum of labeled controls across all cases.
+    const expectedTotal = cases.reduce((n, c) => n + Object.keys(c.expected).length, 0);
+    expect(m.total).toBe(expectedTotal);
     // CI gate: accuracy must not regress below this floor.
     expect(m.accuracy).toBeGreaterThanOrEqual(0.6); // covered vendors match; uncovered + drift reveal gaps
     expect(m.coverage).toBeGreaterThan(0);
