@@ -9,7 +9,7 @@ import {
   Layers, ScanSearch, ChevronRight, Sparkles, ListChecks, ShieldAlert,
   LayoutDashboard, Boxes, Clock, TerminalSquare, Radar as RadarIcon, Trash2,
 } from "lucide-react";
-import { assess as apiAssess, listAssessments, listDiscovered, assessDiscovered, deleteDiscovered, getFeatures, verifyControl, listAlerts, listKb, getAuth, loginUrl, logout } from "./api";
+import { assess as apiAssess, listAssessments, listDiscovered, assessDiscovered, deleteDiscovered, getFeatures, getReadiness, verifyControl, listAlerts, listKb, getAuth, loginUrl, logout } from "./api";
 
 /* ============================================================ *
  * Snout — Critical Enterprise SaaS Controls console
@@ -1038,6 +1038,7 @@ export default function App() {
   const [features, setFeatures] = useState({ catalog: true });
   const [alerts, setAlerts] = useState([]);
   const [auth, setAuth] = useState({ oidcEnabled: false, authenticated: true });
+  const [readiness, setReadiness] = useState(null); // null until loaded / when backend unreachable
 
   const refreshDiscovered = useCallback(async () => {
     try { setDiscovered(await listDiscovered()); } catch { /* offline */ }
@@ -1053,6 +1054,7 @@ export default function App() {
       if (a.oidcEnabled && !a.authenticated) { setLoaded(true); return; }
       const f = await getFeatures();
       setFeatures(f);
+      setReadiness(await getReadiness());
       try {
         const list = await listAssessments();
         setAssessments(list);
@@ -1114,6 +1116,18 @@ export default function App() {
   const title = view === "detail" && current ? current.app : (TITLES[view] || "Snout");
   const navActive = (key) => view === key || ((view === "detail" || view === "assess") && key === "command");
 
+  // Honest system status (EPIC-ACTIVATION): reflect real readiness, not a static badge.
+  const ready = readiness;
+  const sysStatus = !loaded
+    ? { label: "Connecting…", color: C.onVar, pulse: false }
+    : ready === null
+    ? { label: "Backend offline", color: C.error, pulse: false }
+    : !ready.assessReady
+    ? { label: "Setup needed", color: C.tertiary, pulse: false }
+    : !ready.webSearch
+    ? { label: "Reduced grounding", color: C.tertiary, pulse: true }
+    : { label: "System Healthy", color: C.secondary, pulse: true };
+
   // OIDC sign-in gate: when login is enabled and there's no valid session, show a
   // sign-in screen instead of the app (which would only 401).
   if (auth.oidcEnabled && !auth.authenticated) {
@@ -1168,8 +1182,8 @@ export default function App() {
             <button onClick={() => goNew()} className="btn-primary w-full" style={{ padding: "0.6rem", fontSize: 10 }}><Plus className="w-4 h-4" /> Run assessment</button>
             <Terminal busy={busy} onRun={quickRun} />
             <div className="pt-3 border-t hair flex items-center gap-2 px-1">
-              <span className="dot pulse-green" style={{ background: C.secondary }} />
-              <span className="caps txt-var" style={{ fontSize: 9 }}>Trust.sys · Online</span>
+              <span className={`dot ${sysStatus.pulse ? "pulse-green" : ""}`} style={{ background: sysStatus.color }} />
+              <span className="caps txt-var" style={{ fontSize: 9 }}>Trust.sys · {!loaded ? "…" : ready === null ? "Offline" : "Online"}</span>
             </div>
           </div>
         </aside>
@@ -1182,7 +1196,7 @@ export default function App() {
               <TerminalSquare className="w-3.5 h-3.5 txt-dim" style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)" }} />
               <input value={topSearch} onChange={(e) => setTopSearch(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submitTopSearch()} placeholder="Search or assess an app…" className="inp" style={{ padding: "0.45rem 2rem 0.45rem 2.25rem" }} />
             </div>
-            <div className="flex items-center gap-2 txt-secondary shrink-0"><span className="dot pulse-green" style={{ background: C.secondary }} /><span className="caps">System Healthy</span></div>
+            <div className="flex items-center gap-2 shrink-0" style={{ color: sysStatus.color }} title={ready ? `provider: ${ready.provider} · model: ${ready.model} · store: ${ready.store}${ready.webSearch ? "" : " · reduced grounding"}` : "Cannot reach the Snout backend"}><span className={`dot ${sysStatus.pulse ? "pulse-green" : ""}`} style={{ background: sysStatus.color }} /><span className="caps">{sysStatus.label}</span></div>
             {auth.oidcEnabled && auth.authenticated && (
               <div className="flex items-center gap-2 shrink-0 pl-3 border-l hair">
                 {auth.email && <span className="txt-dim" style={{ fontSize: 11 }} title={`Role: ${auth.role} · Tenant: ${auth.tenant}`}>{auth.email}</span>}
@@ -1193,6 +1207,24 @@ export default function App() {
 
           <div className="p-4 sm:p-6">
             <div className="max-w-6xl mx-auto">
+              {loaded && ready === null && (
+                <div className="panel p-3 mb-4 flex items-start gap-3" style={{ borderColor: `${C.error}40`, background: `${C.error}0d` }}>
+                  <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" style={{ color: C.error }} />
+                  <div className="min-w-0 flex-1">
+                    <div className="disp" style={{ fontSize: 13, fontWeight: 600, color: C.on }}>Can't reach the Snout backend</div>
+                    <p className="txt-var" style={{ fontSize: 12.5, marginTop: 2, lineHeight: 1.6 }}>The dashboard can't reach the API at <span className="mono">/api</span>. Make sure the server is running (<span className="mono">npm run dev</span> in <span className="mono">server/</span>) and reachable.</p>
+                  </div>
+                </div>
+              )}
+              {loaded && ready && !ready.assessReady && (
+                <div className="panel p-3 mb-4 flex items-start gap-3" style={{ borderColor: `${C.tertiary}55`, background: `${C.tertiary}0d` }}>
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: C.tertiary }} />
+                  <div className="min-w-0 flex-1">
+                    <div className="disp" style={{ fontSize: 13, fontWeight: 600, color: C.on }}>Finish setup — assessments can't run yet</div>
+                    <p className="txt-var" style={{ fontSize: 12.5, marginTop: 2, lineHeight: 1.6 }}>No LLM provider key is configured. Set <span className="mono">ANTHROPIC_API_KEY</span> on the server (or <span className="mono">LLM_BASE_URL</span> + <span className="mono">LLM_API_KEY</span> + <span className="mono">LLM_MODEL</span> for an OpenAI-compatible endpoint) and restart. Discovery, the knowledge base, and saved assessments still work.</p>
+                  </div>
+                </div>
+              )}
               {alerts.length > 0 && (
                 <div className="panel p-3 mb-4 flex items-center gap-3" style={{ borderColor: `${C.error}40`, background: `${C.error}0d` }}>
                   <ShieldAlert className="w-4 h-4 shrink-0" style={{ color: C.error }} />

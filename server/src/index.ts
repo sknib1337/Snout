@@ -2,7 +2,7 @@ import express, { Request, Response } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
-import { config, assertStartup } from "./config";
+import { config, assertStartup, readiness } from "./config";
 import { assessments } from "./routes/assessments";
 import { catalog } from "./routes/catalog";
 import { kb } from "./routes/kb";
@@ -33,14 +33,10 @@ app.use(morgan("tiny"));
 app.use(express.json({ limit: config.bodyLimit, verify: rawSaver }));
 app.use(express.urlencoded({ extended: true, limit: config.bodyLimit, verify: rawSaver }));
 
-app.get("/health", (_req, res) =>
-  res.json({
-    ok: true,
-    provider: config.llmProvider,
-    model: config.llmProvider === "anthropic" ? config.anthropicModel : config.llmModel,
-    store: config.databaseUrl ? "postgres" : "json",
-  }),
-);
+app.get("/health", (_req, res) => {
+  const r = readiness();
+  res.json({ ok: true, provider: r.provider, model: r.model, store: r.store, assessReady: r.assessReady });
+});
 
 const apiRouters = config.enableCatalog ? [assessments, catalog, kb, alerts] : [assessments, kb, alerts];
 app.use("/api", apiLimiter, apiAuth, withTenant, writeGuard, auditMiddleware, ...apiRouters);

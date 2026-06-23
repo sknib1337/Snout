@@ -120,6 +120,39 @@ export const config = {
   },
 };
 
+// True when the selected provider has everything it needs to actually run an
+// assessment. Anthropic needs a key; an OpenAI-compatible endpoint needs base+key+model.
+export function providerConfigured(): boolean {
+  if (config.llmProvider === "anthropic") return !!config.anthropicApiKey;
+  if (config.llmProvider === "openai") return !!(config.llmBaseUrl && config.llmApiKey && config.llmModel);
+  return false;
+}
+
+// Operator-facing readiness snapshot — booleans only, NEVER secret values. Powers the
+// dashboard's honest status badge + setup checklist (EPIC-ACTIVATION) so a first-run
+// operator can see exactly what is and isn't configured.
+export function readiness() {
+  const assessReady = providerConfigured();
+  return {
+    env: config.env,
+    provider: config.llmProvider,
+    model: config.llmProvider === "anthropic" ? config.anthropicModel : config.llmModel,
+    assessReady,                                       // can /api/assess actually run?
+    webSearch: config.llmProvider === "anthropic" && assessReady, // only this path has live grounding
+    store: config.databaseUrl ? "postgres" : "json",
+    catalog: config.enableCatalog,
+    webhooks: !!config.webhookSecret,
+    oidc: config.oidcEnabled,
+  };
+}
+
+// A safe, env-var-naming hint for why assessments can't run yet (no secret values).
+export function providerSetupHint(): string {
+  return config.llmProvider === "anthropic"
+    ? "No LLM provider key configured. Set ANTHROPIC_API_KEY on the server and restart."
+    : "LLM provider not fully configured. Set LLM_BASE_URL, LLM_API_KEY, and LLM_MODEL on the server and restart.";
+}
+
 export function assertStartup() {
   // Validate the SELECTED provider's config. Anthropic stays warn-only (unchanged:
   // the server may run without a key for non-assess use); new providers fail closed.

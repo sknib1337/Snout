@@ -74,6 +74,17 @@ export async function getFeatures() {
   } catch { return { catalog: true }; }
 }
 
+// Operator readiness for the honest status badge + setup checklist (EPIC-ACTIVATION).
+// Returns null when the backend is unreachable so the UI can show "offline".
+export async function getReadiness() {
+  if (DEMO) return { assessReady: true, provider: "demo", model: "demo", webSearch: true, store: "demo", catalog: true, webhooks: true, oidc: false };
+  try {
+    const r = await fetch(`${BASE}/config`, { headers: headers(false), ...cred });
+    if (!r.ok) return null;
+    return (await r.json()).readiness || null;
+  } catch { return null; }
+}
+
 // --- Discovered apps (from the browser extension / catalog pipeline) ---
 
 export async function listDiscovered() {
