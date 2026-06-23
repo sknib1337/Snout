@@ -151,6 +151,7 @@ export function getStore(tenant: string = currentTenant()): Store {
   let s = pgStores.get(tenant);
   if (!s) {
     // Lazy require so `pg` and the pool are only loaded when actually used.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { createPgStore } = require("./store.pg") as typeof import("./store.pg");
     s = createPgStore(tenant);
     pgStores.set(tenant, s);

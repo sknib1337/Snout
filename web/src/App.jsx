@@ -76,7 +76,6 @@ function readinessOf(score) {
   return { label: "Not Ready", color: C.error };
 }
 const scoreColor = (s) => (s >= 80 ? C.secondary : s >= 50 ? C.tertiary : C.error);
-const uid = () => Math.random().toString(36).slice(2, 10);
 const fmtDate = (iso) => { try { return new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); } catch { return ""; } };
 const ago = (iso) => {
   const m = Math.round((Date.now() - new Date(iso)) / 60000);

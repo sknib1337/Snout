@@ -8,9 +8,15 @@
     "install:all": "npm --prefix server install && npm --prefix web install",
     "dev": "concurrently -n server,web -c blue,magenta \"npm --prefix server run dev\" \"npm --prefix web run dev\"",
     "build": "npm --prefix server run build && npm --prefix web run build",
-    "test": "npm --prefix server test"
+    "test": "npm --prefix server test && npm --prefix web test",
+    "lint": "eslint ."
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "@eslint/js": "^9.39.4",
+    "concurrently": "^8.2.2",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.7.0",
+    "typescript-eslint": "^8.62.0"
   }
 }
