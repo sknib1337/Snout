@@ -94,6 +94,10 @@ npm run dev                 # server :8787  +  web :5173 (proxied)
 Open http://localhost:5173, type an app name in the form / the sidebar terminal /
 the top search, and the agent goes to work (~20–40s).
 
+No key yet? The dashboard is honest about it — the status badge shows **Setup needed** with a
+banner naming the env var to set, and you can click **Load sample data** (or open `?demo=1`) to
+explore the whole UI with illustrative data offline. See **[Demo](#demo)**.
+
 ### Docker
 
 ```bash
@@ -107,7 +111,7 @@ docker compose up --build            # web on :8080, server on :8787
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET`  | `/health` | liveness + active provider/model |
+| `GET`  | `/health` | liveness + active provider/model + `assessReady` (is a provider key configured?) |
 | `GET`  | `/api/assessments` | list, newest first |
 | `GET`  | `/api/assessments/:id` | one assessment |
 | `POST` | `/api/assess` | `{ name, vendor?, url?, context? }` → runs agent, returns the record |
@@ -238,15 +242,21 @@ bearer client's `x-tenant` header or an OIDC user's session claim. The JSON stor
 
 ## Demo
 
-A self-contained, offline demo of the dashboard (seeded with illustrative data — no
-server or API key needed) can be built with:
+Two ways to explore Snout with sample data and **no API key**:
 
-```bash
-cd web && npm run build:demo   # produces web/dist/index.html — open it in a browser
-```
+- **In the running app** — click **Load sample data** on the empty Command Center (or open
+  the dashboard with `?demo=1`, e.g. `http://localhost:5173/?demo=1`, a handy share link). The
+  dashboard fills with illustrative assessments + discovered apps; *Run assessment* synthesizes
+  locally. A **Sample data** banner and **Exit demo** make it clear nothing is real.
+- **As a standalone file** — build a self-contained, offline demo (no server at all):
 
-A prebuilt `snout-demo.html` is also included at the repo root for convenience. The demo
-data is illustrative only; see [DISCLAIMER.md](./DISCLAIMER.md).
+  ```bash
+  cd web && npm run build:demo   # produces web/dist/index.html — open it in a browser
+  ```
+
+  A prebuilt `snout-demo.html` is also included at the repo root for convenience.
+
+The demo data is illustrative only; see [DISCLAIMER.md](./DISCLAIMER.md).
 
 ## Security
 
@@ -273,22 +283,29 @@ Snout keeps an **open, verified knowledge base** of IPSIE-control support per ve
 - Each control carries **provenance** (`kb-verified` · `agent` · `kb-proposed`). Reviewers
   verify or override a control from the dashboard or `POST /api/kb/:key/:control`; agent
   findings are stored as unverified *proposals* so the KB grows over time.
-- Accuracy is **measured, not asserted**: a labeled benchmark + eval harness report per-control
-  and overall accuracy (precision/recall, confusion, calibration).
+- Accuracy is **measured, not asserted**, and **bias-resistant**: the eval reports **held-out
+  (never-in-KB) accuracy** and a **baseline comparison** — naive floor vs KB-only vs (with
+  `--live`) no-KB-model vs KB-augmented-model, plus the resulting **KB lift** — alongside
+  per-control accuracy, precision/recall, confusion, and calibration.
 - The KB **compounds**: `npm run seed:kb` batch-runs the agent over a vendor list to generate
-  unverified proposals at scale; the dashboard **Knowledge** view is a verification queue where a
+  unverified proposals at scale; the dashboard **Knowledge** view is a verification queue
+  (prioritized most-unverified-first, with a verified-% bar and per-vendor bulk-verify) where a
   human promotes proposals to verified (and flags facts older than 180 days as stale).
+  `npm run kb:stats` reports coverage and the human-verified ratio.
 
 ```bash
 cd server
-npm run kb:validate     # validate every kb/<domain>.json against the schema
-npm run eval            # KB-only accuracy vs the benchmark → writes kb/EVAL.md
-npm run eval -- --live  # optional: run the real agent instead of KB-only (uses your provider)
-npm run seed:kb         # batch-generate KB proposals from scripts/seed-vendors.json (live; needs a key)
+npm run kb:validate         # validate every kb/<domain>.json against the schema
+npm run kb:stats            # coverage + human-verified ratio + fully-verified vendors
+npm run eval                # KB-only accuracy vs the benchmark → writes kb/EVAL.md
+npm run eval -- --baseline  # add the naive/KB-only baseline comparison + held-out split
+npm run eval -- --live --baseline  # also run the model with/without the KB → KB lift (uses your provider)
+npm run seed:kb             # batch-generate KB proposals from scripts/seed-vendors.json (live; needs a key)
 ```
 
-Current measured numbers live in [kb/EVAL.md](./kb/EVAL.md). The scoring itself stays the
-transparent mean documented in [METHODOLOGY.md](./METHODOLOGY.md).
+Current measured numbers live in [kb/EVAL.md](./kb/EVAL.md); the label-independence discipline is
+in [server/eval/README.md](./server/eval/README.md). The scoring itself stays the transparent
+mean documented in [METHODOLOGY.md](./METHODOLOGY.md).
 
 ## Assessment correctness (optional)
 

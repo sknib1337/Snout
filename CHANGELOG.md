@@ -7,6 +7,26 @@ All notable changes to Snout are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **First-run activation** (EPIC-ACTIVATION). The dashboard now reflects **honest readiness**: an
+  `/api/config` `readiness` block + a `/health` `assessReady` flag drive a real status badge
+  (Connecting… / Backend offline / Setup needed / Reduced grounding / System Healthy) instead of a
+  hardcoded "System Healthy", with a setup banner naming the exact env var to set.
+  `POST /api/assess` now **fails fast** with a clear `provider_not_configured` message (no doomed
+  LLM call) when no key is configured. A runtime **Load sample data** demo mode — also reachable via
+  a shareable `?demo=1` link — lets anyone explore the full dashboard offline with no key (*Run
+  assessment* synthesizes locally; an Exit-demo control returns to live state). Readiness exposes
+  booleans only, never secret values.
+- **Verified core + KB verification meter** (EPIC-MOAT Sprint 2). `npm run kb:stats` plus a
+  dashboard verified-% bar (queue prioritized most-unverified-first, per-vendor bulk verify) make
+  "human-verified and compounding" measurable; the eval adds a **KB-verified-only** comparison row
+  so verification's effect on accuracy is visible. The top-tier vendors (Slack, GitHub, Salesforce)
+  are hand-authored to `human`-verified against first-party docs (with specific citations), and the
+  seeder **skips held-out benchmark vendors** so it can't inflate the eval.
+- **Bias-resistant eval** (EPIC-MOAT Sprint 1). The eval breaks the label↔KB circularity:
+  benchmark cases are tagged `inKb`, the report leads with **held-out (never-in-KB) accuracy**, and
+  a `--baseline` mode compares a naive floor, KB-only, and (with `--live`) the model **with and
+  without** the KB — reporting the **KB lift**. Independent held-out vendors (Box, Zendesk, Miro,
+  1Password) were added; the label-independence protocol is documented in `server/eval/README.md`.
 - **Postgres store + per-tenant data isolation** (`server/src/store.pg.ts`, `pg`). Set
   `DATABASE_URL` to switch from the zero-config JSON store (single-tenant) to a Postgres
   backend that scopes **every** row by tenant — each query carries `WHERE tenant = $1`, so one
@@ -86,6 +106,12 @@ All notable changes to Snout are documented here. The format is based on
   `/api/config` now report the effective provider/model.
 
 ### Changed
+- **Dependency majors, validated.** Upgraded **express 4 → 5** (+ `@types/express` 5),
+  **TypeScript 5 → 6** (with tsconfig `ignoreDeprecations: "6.0"` for the deprecated `node10`
+  module resolution), and **Tailwind CSS 3 → 4** (PostCSS plugin moved to `@tailwindcss/postcss`,
+  `@tailwind` directives → `@import "tailwindcss"`, a v3 border-color compatibility shim, JS config
+  dropped in favor of v4 auto-detection). Each was validated against the full test suite + build
+  before merge; no behavior change.
 - **Smaller initial web chunks.** The production build now vendor-splits `recharts` (~273 kB)
   and React (~179 kB) into their own cacheable chunks via Rolldown `advancedChunks`, so no
   single chunk exceeds Vite's 500 kB advisory (app chunk is ~70 kB). The single-file demo build
