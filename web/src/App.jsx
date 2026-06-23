@@ -317,7 +317,7 @@ function AssessmentRow({ a, onOpen }) {
 
 /* --------------------------- Command Center --------------------------- */
 
-function CommandCenter({ assessments, onOpen, onNew, goCatalog }) {
+function CommandCenter({ assessments, onOpen, onNew, goCatalog, onDemo }) {
   const stats = useMemo(() => {
     const n = assessments.length;
     const avg = n ? Math.round(assessments.reduce((a, x) => a + x.score, 0) / n) : 0;
@@ -326,7 +326,7 @@ function CommandCenter({ assessments, onOpen, onNew, goCatalog }) {
     return { n, avg, ready, attention };
   }, [assessments]);
   const recent = useMemo(() => [...assessments].sort((a, b) => new Date(b.assessedAt) - new Date(a.assessedAt)).slice(0, 6), [assessments]);
-  if (stats.n === 0) return <EmptyState onNew={onNew} />;
+  if (stats.n === 0) return <EmptyState onNew={onNew} onDemo={onDemo} />;
 
   return (
     <div className="space-y-4">
@@ -370,7 +370,7 @@ function CommandCenter({ assessments, onOpen, onNew, goCatalog }) {
   );
 }
 
-function EmptyState({ onNew }) {
+function EmptyState({ onNew, onDemo }) {
   return (
     <div className="panel p-12 text-center">
       <div className="mx-auto grid place-items-center" style={{ width: 52, height: 52, borderRadius: 10, background: "rgba(173,198,255,0.08)" }}><Sparkles className="w-6 h-6 txt-primary" /></div>
@@ -379,14 +379,18 @@ function EmptyState({ onNew }) {
         Name any SaaS tool — in the form, the sidebar terminal, or the search bar — and the agent researches its identity posture
         against the six IPSIE-aligned identity controls, cites its sources, and drafts a governance verdict.
       </p>
-      <button onClick={onNew} className="btn-primary mx-auto mt-5" style={{ padding: "0.55rem 1rem", fontSize: 11 }}><Plus className="w-4 h-4" /> Run first assessment</button>
+      <div className="flex flex-wrap items-center justify-center gap-2 mt-5">
+        <button onClick={onNew} className="btn-primary" style={{ padding: "0.55rem 1rem", fontSize: 11 }}><Plus className="w-4 h-4" /> Run first assessment</button>
+        {onDemo && <button onClick={onDemo} className="btn-ghost" style={{ padding: "0.55rem 1rem", fontSize: 11 }}><Sparkles className="w-4 h-4" /> Load sample data</button>}
+      </div>
+      {onDemo && <p className="txt-dim mx-auto" style={{ fontSize: 11, marginTop: 10 }}>No API key? Load sample data to explore the dashboard offline.</p>}
     </div>
   );
 }
 
 /* --------------------------- Catalog --------------------------- */
 
-function Catalog({ assessments, onOpen, onNew, initialQuery }) {
+function Catalog({ assessments, onOpen, onNew, initialQuery, onDemo }) {
   const [q, setQ] = useState(initialQuery || "");
   const [sort, setSort] = useState("recent");
   useEffect(() => { if (initialQuery !== undefined) setQ(initialQuery); }, [initialQuery]);
@@ -397,7 +401,7 @@ function Catalog({ assessments, onOpen, onNew, initialQuery }) {
     if (sort === "risk") r = [...r].sort((a, b) => a.score - b.score);
     return r;
   }, [assessments, q, sort]);
-  if (assessments.length === 0) return <EmptyState onNew={onNew} />;
+  if (assessments.length === 0) return <EmptyState onNew={onNew} onDemo={onDemo} />;
   return (
     <div className="panel">
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 border-b hair">
@@ -1039,14 +1043,36 @@ export default function App() {
   const [alerts, setAlerts] = useState([]);
   const [auth, setAuth] = useState({ oidcEnabled: false, authenticated: true });
   const [readiness, setReadiness] = useState(null); // null until loaded / when backend unreachable
+  const [demoMode, setDemoMode] = useState(false);  // runtime sample-data mode (no key/server needed)
 
   const refreshDiscovered = useCallback(async () => {
     try { setDiscovered(await listDiscovered()); } catch { /* offline */ }
     try { setAlerts(await listAlerts()); } catch { /* offline */ }
   }, []);
 
+  // Load demo sample data into state (runtime, no server). Persisted so it survives reload.
+  const enterDemo = useCallback(async () => {
+    const m = await import("./demo.js");
+    setAssessments([...m.DEMO_ASSESSMENTS]);
+    setDiscovered([...m.DEMO_DISCOVERED]);
+    setAlerts([]); setFeatures({ catalog: true });
+    setReadiness({ assessReady: true, provider: "demo", model: "sample data", webSearch: true, store: "demo", catalog: true, webhooks: false, oidc: false });
+    setDemoMode(true); setCurrentId(null); setView("command"); setLoaded(true);
+    try { localStorage.setItem("snout_demo", "1"); } catch { /* ignore */ }
+  }, []);
+  const exitDemo = useCallback(() => {
+    try { localStorage.removeItem("snout_demo"); } catch { /* ignore */ }
+    window.location.reload(); // cleanly reset to live state
+  }, []);
+
   useEffect(() => {
     (async () => {
+      // Sample-data mode short-circuits the live API entirely. Triggerable via a
+      // persisted flag or a shareable ?demo=1 link (handy for UAT walkthroughs).
+      let wantDemo = false;
+      try { wantDemo = localStorage.getItem("snout_demo") === "1" || new URLSearchParams(window.location.search).get("demo") === "1"; } catch { /* ignore */ }
+      if (wantDemo) { await enterDemo(); return; }
+
       const a = await getAuth();
       setAuth(a);
       // When OIDC is enabled but no valid session exists, stop here and show the
@@ -1064,28 +1090,38 @@ export default function App() {
       if (f.catalog) refreshDiscovered();
       setLoaded(true);
     })();
-  }, [refreshDiscovered]);
+  }, [refreshDiscovered, enterDemo]);
 
   const handleRun = useCallback(async (input) => {
     setBusy(true); setError(""); setView("assess");
     try {
-      const record = await apiAssess(input);
+      let record;
+      if (demoMode) { const m = await import("./demo.js"); await new Promise((r) => setTimeout(r, 900)); record = m.demoSynthesize(input); }
+      else record = await apiAssess(input);
       setAssessments((prev) => [record, ...prev.filter((x) => x.app.toLowerCase() !== record.app.toLowerCase())]);
       setCurrentId(record.id); setView("detail"); setPrefill(null);
     } catch (e) { setError(e.message || "Something went wrong while assessing this app."); }
     finally { setBusy(false); }
-  }, []);
+  }, [demoMode]);
 
   const handleAssessDiscovered = useCallback(async (domain) => {
     setBusyDomain(domain);
     try {
+      if (demoMode) {
+        const m = await import("./demo.js"); await new Promise((r) => setTimeout(r, 900));
+        const app = discovered.find((d) => d.domain === domain);
+        const record = m.demoSynthesize({ name: app?.name || domain, vendor: app?.name });
+        setAssessments((prev) => [record, ...prev.filter((x) => x.app.toLowerCase() !== record.app.toLowerCase())]);
+        setDiscovered((prev) => prev.map((d) => d.domain === domain ? { ...d, assessmentId: record.id, assessment: { id: record.id, score: record.score, recommendation: record.recommendation } } : d));
+        setCurrentId(record.id); setView("detail"); return;
+      }
       const record = await assessDiscovered(domain);
       setAssessments((prev) => [record, ...prev.filter((x) => x.app.toLowerCase() !== record.app.toLowerCase())]);
       await refreshDiscovered();
       setCurrentId(record.id); setView("detail");
     } catch (e) { alert(e.message || "Assessment failed"); }
     finally { setBusyDomain(null); }
-  }, [refreshDiscovered]);
+  }, [refreshDiscovered, demoMode, discovered]);
 
   const handleDeleteDiscovered = useCallback(async (domain) => {
     try { await deleteDiscovered(domain); await refreshDiscovered(); } catch { /* ignore */ }
@@ -1093,14 +1129,14 @@ export default function App() {
 
   const handleVerify = useCallback(async (key, control, verdict, vendor) => {
     try {
-      await verifyControl(key, control, { verdict, vendor });
+      if (!demoMode) await verifyControl(key, control, { verdict, vendor });
       setAssessments((prev) => prev.map((a) => {
         if (a.id !== currentId) return a;
         const capabilities = { ...a.capabilities, [control]: { ...(a.capabilities?.[control] || {}), verdict, source: "kb-verified", confidence: 1 } };
         return { ...a, capabilities, score: computeScore(capabilities) };
       }));
     } catch (e) { alert(e.message || "Verify failed"); }
-  }, [currentId]);
+  }, [currentId, demoMode]);
 
   const current = assessments.find((a) => a.id === currentId);
   const goNew = (pf = null) => { setPrefill(pf); setError(""); setView("assess"); };
@@ -1118,7 +1154,9 @@ export default function App() {
 
   // Honest system status (EPIC-ACTIVATION): reflect real readiness, not a static badge.
   const ready = readiness;
-  const sysStatus = !loaded
+  const sysStatus = demoMode
+    ? { label: "Demo data", color: C.primary, pulse: true }
+    : !loaded
     ? { label: "Connecting…", color: C.onVar, pulse: false }
     : ready === null
     ? { label: "Backend offline", color: C.error, pulse: false }
@@ -1207,7 +1245,17 @@ export default function App() {
 
           <div className="p-4 sm:p-6">
             <div className="max-w-6xl mx-auto">
-              {loaded && ready === null && (
+              {demoMode && (
+                <div className="panel p-3 mb-4 flex items-center gap-3" style={{ borderColor: `${C.primary}55`, background: `${C.primary}0d` }}>
+                  <Sparkles className="w-4 h-4 shrink-0" style={{ color: C.primary }} />
+                  <div className="min-w-0 flex-1">
+                    <span className="disp" style={{ fontSize: 13, fontWeight: 600, color: C.on }}>Sample data</span>
+                    <span className="txt-var" style={{ fontSize: 12.5, marginLeft: 8 }}>You're exploring Snout with demo assessments — nothing here is real. Add a provider key to run live research.</span>
+                  </div>
+                  <button onClick={exitDemo} className="btn-ghost shrink-0" style={{ padding: "0.25rem 0.6rem", fontSize: 10 }}>Exit demo</button>
+                </div>
+              )}
+              {!demoMode && loaded && ready === null && (
                 <div className="panel p-3 mb-4 flex items-start gap-3" style={{ borderColor: `${C.error}40`, background: `${C.error}0d` }}>
                   <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" style={{ color: C.error }} />
                   <div className="min-w-0 flex-1">
@@ -1216,13 +1264,14 @@ export default function App() {
                   </div>
                 </div>
               )}
-              {loaded && ready && !ready.assessReady && (
+              {!demoMode && loaded && ready && !ready.assessReady && (
                 <div className="panel p-3 mb-4 flex items-start gap-3" style={{ borderColor: `${C.tertiary}55`, background: `${C.tertiary}0d` }}>
                   <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: C.tertiary }} />
                   <div className="min-w-0 flex-1">
                     <div className="disp" style={{ fontSize: 13, fontWeight: 600, color: C.on }}>Finish setup — assessments can't run yet</div>
                     <p className="txt-var" style={{ fontSize: 12.5, marginTop: 2, lineHeight: 1.6 }}>No LLM provider key is configured. Set <span className="mono">ANTHROPIC_API_KEY</span> on the server (or <span className="mono">LLM_BASE_URL</span> + <span className="mono">LLM_API_KEY</span> + <span className="mono">LLM_MODEL</span> for an OpenAI-compatible endpoint) and restart. Discovery, the knowledge base, and saved assessments still work.</p>
                   </div>
+                  <button onClick={enterDemo} className="btn-ghost shrink-0 self-center" style={{ padding: "0.3rem 0.7rem", fontSize: 10, whiteSpace: "nowrap" }}><Sparkles className="w-3.5 h-3.5" /> Load sample data</button>
                 </div>
               )}
               {alerts.length > 0 && (
@@ -1237,9 +1286,9 @@ export default function App() {
               {!loaded ? (
                 <div className="py-24 grid place-items-center txt-dim"><Loader2 className="w-6 h-6 spin" /></div>
               ) : view === "command" ? (
-                <CommandCenter assessments={assessments} onOpen={open} onNew={() => goNew()} goCatalog={() => { setCatalogQuery(""); setView("catalog"); }} />
+                <CommandCenter assessments={assessments} onOpen={open} onNew={() => goNew()} goCatalog={() => { setCatalogQuery(""); setView("catalog"); }} onDemo={demoMode ? undefined : enterDemo} />
               ) : view === "catalog" ? (
-                <Catalog assessments={assessments} onOpen={open} onNew={() => goNew()} initialQuery={catalogQuery} />
+                <Catalog assessments={assessments} onOpen={open} onNew={() => goNew()} initialQuery={catalogQuery} onDemo={demoMode ? undefined : enterDemo} />
               ) : view === "discovered" ? (
                 <Discovered apps={discovered} busyDomain={busyDomain} onAssess={handleAssessDiscovered} onOpen={open} onDelete={handleDeleteDiscovered} />
               ) : view === "assess" ? (
@@ -1251,7 +1300,7 @@ export default function App() {
               ) : view === "detail" && current ? (
                 <Detail a={current} onBack={() => setView("command")} onReassess={() => goNew({ name: current.app, vendor: current.vendor })} onVerify={handleVerify} />
               ) : (
-                <CommandCenter assessments={assessments} onOpen={open} onNew={() => goNew()} goCatalog={() => setView("catalog")} />
+                <CommandCenter assessments={assessments} onOpen={open} onNew={() => goNew()} goCatalog={() => setView("catalog")} onDemo={demoMode ? undefined : enterDemo} />
               )}
               <footer className="mt-8 mono txt-dim" style={{ fontSize: 10.5, lineHeight: 1.7 }}>Snout scores the six critical enterprise SaaS controls — SSO · lifecycle · entitlements · risk signals · logout · token revocation. Verdicts are evidence-backed, not advice; confirm citations before acting.</footer>
             </div>
