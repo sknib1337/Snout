@@ -2,7 +2,7 @@
   "name": "snout",
   "version": "1.0.0",
   "private": true,
-  "description": "Snout — agent-driven due diligence for critical enterprise SaaS controls.",
+  "description": "Snout — open, transparent, IPSIE-aligned identity-trust scoring for SaaS vendors.",
   "license": "MIT",
   "scripts": {
     "install:all": "npm --prefix server install && npm --prefix web install",
