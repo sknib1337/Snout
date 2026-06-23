@@ -3,16 +3,18 @@ import { z } from "zod";
 import { assessApp } from "../agent";
 import { store } from "../store";
 import { assessLimiter, assessSlots } from "../security/limits";
-import { config } from "../config";
+import { config, readiness, providerConfigured, providerSetupHint } from "../config";
 
 export const assessments = Router();
 
-// Lets the web app discover which capabilities are enabled (e.g. show/hide the
-// Discovered view). No secrets — safe behind the normal API auth.
+// Lets the web app discover which capabilities are enabled (show/hide the Discovered
+// view) and whether the server is actually ready to assess. No secrets — booleans
+// only, behind the normal API auth.
 assessments.get("/config", (_req, res) => {
   res.json({
     features: { catalog: config.enableCatalog },
-    model: config.llmProvider === "anthropic" ? config.anthropicModel : config.llmModel,
+    model: readiness().model,
+    readiness: readiness(),
   });
 });
 
@@ -43,6 +45,12 @@ assessments.delete("/assessments/:id", async (req, res, next) => {
 assessments.post("/assess", assessLimiter, async (req, res) => {
   const parsed = AssessBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid request" });
+
+  // Fail fast with an actionable message (don't consume a concurrency slot or attempt
+  // a doomed LLM call) when the provider isn't configured — the #1 first-run snag.
+  if (!providerConfigured()) {
+    return res.status(503).json({ code: "provider_not_configured", error: providerSetupHint() });
+  }
 
   if (!assessSlots.tryAcquire()) {
     return res.status(429).json({ error: "Server is busy assessing other apps — try again shortly." });
