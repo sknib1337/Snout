@@ -25,6 +25,12 @@ harness measures predictions against a labeled benchmark.
    well-evidenced facts to `source: "human"`.
 4. Run `npm run kb:validate` (in `server/`) — CI validates every file against the schema.
 
+Check coverage and the human-verified ratio with `npm run kb:stats`, and measure accuracy with
+`npm run eval -- --baseline` (reports held-out accuracy + a baseline comparison). See
+[server/eval/README.md](../server/eval/README.md) for the label-independence rules — in
+particular, **held-out benchmark vendors must never get a `kb/<domain>.json` file**, or they stop
+being a generalization test (the seeder enforces this and skips them).
+
 ## Control keys
 
 `sso` · `ulm` (user lifecycle / SCIM) · `entitlements` · `riskSignals` (CAEP/SSF) · `logout` ·
