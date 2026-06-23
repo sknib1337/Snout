@@ -9,8 +9,8 @@ export interface PostureFinding { id: string; severity: Severity; title: string;
 
 // Tiered OAuth scope risk (depth D5): write/admin scopes are high; broad read access
 // is medium; long-lived (offline) tokens are low.
-const HIGH_SCOPE_RE = /(^|[._:\/])(admin|write|delete|manage|modify|full|owner|read_write|readwrite|root|superuser)([._:\/]|$)/i;
-const BROAD_SCOPE_RE = /(^|[._:\/])(mail|email|drive|files?|contacts?|calendar|directory|all|read)([._:\/]|$)/i;
+const HIGH_SCOPE_RE = /(^|[._:/])(admin|write|delete|manage|modify|full|owner|read_write|readwrite|root|superuser)([._:/]|$)/i;
+const BROAD_SCOPE_RE = /(^|[._:/])(mail|email|drive|files?|contacts?|calendar|directory|all|read)([._:/]|$)/i;
 const OFFLINE_RE = /offline_access|refresh_token/i;
 const SEV_WEIGHT: Record<Severity, number> = { high: 40, medium: 20, low: 8 };
 

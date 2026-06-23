@@ -6,6 +6,18 @@ on:
   pull_request:
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20.19"
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm install
+      - run: npm run lint
+
   server:
     runs-on: ubuntu-latest
     defaults:
@@ -15,7 +27,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: "20.19"
           cache: npm
           cache-dependency-path: server/package-lock.json
       - run: npm install
@@ -34,10 +46,11 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: "20.19"
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm install
+      - run: npm test
       - run: npm run build
       - run: npm audit --omit=dev --audit-level=high
         continue-on-error: true

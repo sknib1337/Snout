@@ -7,6 +7,12 @@ All notable changes to Snout are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **Hardened web tier** (EPIC-HARDEN). A top-level **React error boundary** replaces white-screens
+  with a friendly, reload-able fallback; a **Vitest + Testing Library** smoke suite covers the
+  dashboard shell, the readiness/setup states, demo mode, and the boundary (the web tier had no
+  tests before). Repo-wide **ESLint** (flat config — typescript-eslint for the server,
+  react-hooks for the web, webextension globals for the extension) runs in CI alongside the new
+  web test job, and CI pins **Node 20.19**.
 - **First-run activation** (EPIC-ACTIVATION). The dashboard now reflects **honest readiness**: an
   `/api/config` `readiness` block + a `/health` `assessReady` flag drive a real status badge
   (Connecting… / Backend offline / Setup needed / Reduced grounding / System Healthy) instead of a

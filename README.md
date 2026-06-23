@@ -78,7 +78,7 @@ dashboard produce one identical record.
 
 ## Quickstart
 
-Prerequisites: Node 20+.
+Prerequisites: Node 20.19+.
 
 ```bash
 git clone <your-fork-url> snout && cd snout
@@ -341,11 +341,18 @@ the web-search path):
 - **OIDC dashboard login** — optional IdP sign-in (Authorization Code + PKCE) with a signed,
   httpOnly session cookie; role/tenant derived from claims. Bearer auth still works alongside it.
 
-## Tests
+## Tests & linting
 
 ```bash
-npm test            # server: scoring + HMAC + discovery + KB/eval + posture + RBAC + Postgres isolation + OIDC + pollers (vitest)
+npm test            # server + web suites (Vitest)
+npm run lint        # ESLint across server, web, and the extension
 ```
+
+Server tests cover scoring · HMAC · discovery · KB/eval (incl. baseline + readiness) · posture ·
+RBAC · Postgres tenant isolation · OIDC · pollers. Web tests (Vitest + Testing Library) smoke-test
+the dashboard shell, the readiness/setup states, demo mode, and the error boundary. A top-level
+**React error boundary** shows a friendly fallback instead of a white screen if any view throws.
+CI runs lint + both suites + both builds on every PR (Node 20.19).
 
 ## Roadmap ideas
 
