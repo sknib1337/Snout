@@ -9,3 +9,9 @@ server/data/
 coverage/
 .vite/
 .claude/
+CLAUDE.md
+# Secrets / key files (real .env is already ignored above; .env.example is committed)
+*.pem
+*.key
+*.p12
+*.keystore
