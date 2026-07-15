@@ -7,7 +7,20 @@ All notable changes to Snout are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
-- **Hardened web tier** (EPIC-HARDEN). A top-level **React error boundary** replaces white-screens
+- **Console v2 design pass** (EPIC-CONSOLE-V2). The dashboard and extension popup now share one
+  design-token source (`tokens.css`, `--sn-*`, WCAG-checked: `#8c909f` demoted to borders-only,
+  unknown-verdict color moved to an AA-passing `#9aa3bd`). A **de-robotization** pass makes all
+  chrome Inter sentence case with JetBrains Mono reserved for data — verdict/governance/band pills
+  keep mono caps with **glyph + label + color** (never color alone) — and provenance is quiet text.
+  The **Command Center** gains a hero metric, a vendors×controls **coverage matrix** (with a live
+  weakest-control note), a **needs-attention queue**, and a live system panel; the sidebar gains a
+  **portfolio pulse** bar and an **engine feed** of real events (assessments, KB verifies,
+  discovery) plus a measured once-a-minute heartbeat — no fabricated telemetry. An accessible
+  **toast system** replaces every native `alert()` (auto-dismiss with pausable progress,
+  `aria-live`, ESC, reduced-motion), status banners follow the v2 recipes (including a new
+  reduced-grounding banner), the radar gets verdict-colored dots + weight labels, and the new
+  brand mark/wordmark, favicons, and OG metadata land across web + extension (which also bundles
+  its fonts locally and is renamed "Snout — Shadow SaaS & Auth Discovery"). A top-level **React error boundary** replaces white-screens
   with a friendly, reload-able fallback; a **Vitest + Testing Library** smoke suite covers the
   dashboard shell, the readiness/setup states, demo mode, and the boundary (the web tier had no
   tests before). Repo-wide **ESLint** (flat config — typescript-eslint for the server,

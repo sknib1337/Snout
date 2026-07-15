@@ -34,8 +34,10 @@ describe("App readiness/activation", () => {
   it("shows 'Setup needed' + a setup banner when no provider key", async () => {
     mocks.readiness.mockResolvedValue(ready({ assessReady: false, webSearch: false }));
     render(<App />);
-    expect(await screen.findByText(/setup needed/i)).toBeInTheDocument();
-    expect(await screen.findByText(/finish setup/i)).toBeInTheDocument();
+    // Badge, banner, and sidebar footer all reflect the state (sentence case, v2 copy).
+    const hits = await screen.findAllByText(/setup needed/i);
+    expect(hits.length).toBeGreaterThan(0);
+    expect(await screen.findByText(/ANTHROPIC_API_KEY/)).toBeInTheDocument();
   });
 
   it("shows 'System Healthy' when ready with web search", async () => {

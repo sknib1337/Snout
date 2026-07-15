@@ -15,3 +15,7 @@ CLAUDE.md
 *.key
 *.p12
 *.keystore
+
+# Design working material (reference bundles; production assets are copied into
+# web/public/ and extension/ — the bundle itself stays local)
+design_handoff_console_v2/
