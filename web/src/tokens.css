@@ -1,0 +1,149 @@
+/* ════════════════════════════════════════════════════════════════
+   SNOUT — canonical design tokens · v1
+   One source of truth for web (App.jsx) AND extension (popup.css).
+   Drop-in: <link rel="stylesheet" href="tokens/snout.css">
+   Tailwind v4 (already installed): mirror in an @theme block, e.g.
+     @theme { --color-bg: var(--sn-bg); --color-primary: var(--sn-primary); }
+   ════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Surfaces — elevation ladder (low → high) ─────────────── */
+  --sn-bg:        #0b1326;
+  --sn-bg-deep:   #060e20;   /* wells: terminal, code, shader base */
+  --sn-surface-1: #131b2e;
+  --sn-surface-2: #171f33;
+  --sn-surface-3: #222a3d;
+  --sn-surface-4: #2d3449;
+  --sn-surface-5: #31394d;   /* hover tops */
+
+  /* ── Text (contrast computed on composited surfaces) ──────── */
+  --sn-text:      #dae2fd;   /* 14.3:1 bg · 11.1:1 s4  AA+ */
+  --sn-text-2:    #c2c6d6;   /* 10.1:1 s1 · 7.3:1 s4   AA+ */
+  --sn-text-dim:  #9aa3bd;   /* NEW · 6.5:1 s2 · 4.9:1 s4 — minimum text color */
+  --sn-outline:   #8c909f;   /* DEMOTED: borders/decoration ONLY.
+                                3.9:1 on s4 — fails AA as text. */
+  --sn-border:       #424754;
+  --sn-border-faint: rgba(255, 255, 255, 0.09);
+
+  /* ── Brand ─────────────────────────────────────────────────── */
+  --sn-primary:        #adc6ff;  /* periwinkle · 10.8:1 on bg */
+  --sn-primary-strong: #4d8eff;  /* 5.8:1 — large text/graphics only */
+  --sn-on-primary:     #002e6a;  /* 7.7:1 on primary */
+  --sn-grad-brand:   linear-gradient(135deg, #adc6ff, #4edea3); /* signature: mark, wordmark accents */
+  --sn-grad-primary: linear-gradient(135deg, #adc6ff, #4d8eff); /* primary buttons, logo tile */
+  --sn-focus-ring: 0 0 0 2px var(--sn-bg), 0 0 0 4px var(--sn-primary);
+
+  /* ── Semantic: control verdicts (transparent-mean weights) ── */
+  /*  RULE: color is never the only channel. Verdict UI always
+      renders glyph + label + color.  Glyphs: ✓ ◐ ? ✕            */
+  --sn-supported:   #4edea3;  /* weight 100 · ✓ */
+  --sn-partial:     #ffb95f;  /* weight  55 · ◐ */
+  --sn-unknown:     #9aa3bd;  /* weight  25 · ? — moved off #8c909f (pill failed AA) */
+  --sn-unsupported: #ffb4ab;  /* weight   8 · ✕ */
+  /* pill recipe → bg: color-mix(in srgb, <verdict> 13%, transparent)
+                   border: 1px color-mix(in srgb, <verdict> 30%, transparent)
+                   text/glyph: full verdict color.
+     Verified on surface-1: 7.7 / 7.7 / 5.5 / 7.7 : 1 — all AA. */
+
+  /* ── Semantic: governance outcomes ─────────────────────────── */
+  --sn-approve:    var(--sn-supported);    /* ✓ APPROVE */
+  --sn-conditions: var(--sn-partial);      /* ◐ APPROVE WITH CONDITIONS */
+  --sn-hold:       var(--sn-primary);      /* ◷ HOLD */
+  --sn-reject:     var(--sn-unsupported);  /* ✕ REJECT */
+
+  /* ── Semantic: score bands ─────────────────────────────────── */
+  --sn-band-ready:    var(--sn-supported);   /* ≥80 Controls Ready */
+  --sn-band-partial:  var(--sn-partial);     /* 50–79 Partial */
+  --sn-band-notready: var(--sn-unsupported); /* <50 Not Ready */
+
+  /* ── Semantic: provenance tiers ────────────────────────────── */
+  --sn-prov-attested: #4edea3;  /* ◆ vendor-attested (roadmap tier, above kb-verified) */
+  --sn-prov-verified: #adc6ff;  /* ◆ kb-verified (human queue) */
+  --sn-prov-agent:    #8fb5ff;  /* ◇ agent-researched */
+  --sn-prov-proposed: #ffb95f;  /* ◇ kb-proposed (awaiting review) */
+  --sn-stale:         #ffb95f;  /* ◷ evidence >180 days */
+
+  /* ── Status / readiness states ─────────────────────────────── */
+  --sn-healthy:  #4edea3;  /* pulsing dot */
+  --sn-degraded: #ffb95f;  /* reduced grounding, setup needed */
+  --sn-offline:  #ffb4ab;  /* backend offline */
+
+  /* ── Typography ────────────────────────────────────────────── */
+  --sn-font-display: "Hanken Grotesk", system-ui, sans-serif;
+  --sn-font-body:    Inter, system-ui, sans-serif;
+  --sn-font-mono:    "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  /* Scale — replaces ad-hoc 8 / 9.5 / 10.5 / 13.5 px.
+     Extension MUST bundle woff2 locally (popup referenced brand
+     fonts without importing them — fell back to system-ui). */
+  --sn-text-display: 64px;  /* Hanken 800 · -0.01em · dial scores */
+  --sn-text-hero:    44px;  /* Hanken 800 · -0.01em */
+  --sn-text-title:   32px;  /* Hanken 700 · -0.01em · page titles */
+  --sn-text-h2:      24px;  /* Hanken 700 · section titles */
+  --sn-text-h3:      18px;  /* Hanken 600 · card titles */
+  --sn-text-body:    15px;  /* Inter 400/500 */
+  --sn-text-sm:      13px;  /* Inter 400 · tables, citations */
+  --sn-text-caption: 12px;  /* Inter 500 · timestamps, helpers */
+  --sn-text-micro:   11px;  /* Mono 700 UPPERCASE — HARD FLOOR (was 8–10px) */
+  --sn-tracking-micro:   0.08em;
+  --sn-tracking-display: -0.01em;
+  --sn-leading-body: 1.55;
+
+  /* ── Space (4px base) & radius ─────────────────────────────── */
+  --sn-space-1: 4px;  --sn-space-2: 8px;  --sn-space-3: 12px;
+  --sn-space-4: 16px; --sn-space-5: 20px; --sn-space-6: 24px;
+  --sn-space-8: 32px; --sn-space-10: 40px; --sn-space-12: 48px;
+  --sn-radius-sm: 6px;    /* chips, badges */
+  --sn-radius:    8px;    /* buttons, inputs (≈0.5rem, current) */
+  --sn-radius-lg: 12px;   /* panels, cards */
+  --sn-radius-xl: 16px;   /* modals, hero panels */
+  --sn-radius-pill: 999px;
+
+  /* ── Glass recipe ──────────────────────────────────────────── */
+  --sn-glass-bg:     rgba(11, 19, 38, 0.68);
+  --sn-glass-blur:   13px;
+  --sn-glass-border: rgba(255, 255, 255, 0.10);
+  /* usage: background: var(--sn-glass-bg);
+            backdrop-filter: blur(var(--sn-glass-blur));
+            border: 1px solid var(--sn-glass-border);
+            border-radius: var(--sn-radius-lg);                   */
+
+  /* ── Elevation & glow ──────────────────────────────────────── */
+  --sn-shadow-1: 0 8px 28px rgba(0, 0, 0, 0.42);
+  --sn-shadow-2: 0 16px 48px rgba(0, 0, 0, 0.50);
+  --sn-glow-primary: 0 0 24px rgba(173, 198, 255, 0.35); /* hover lift */
+  --sn-glow-green:   0 0 20px rgba(78, 222, 163, 0.35);  /* healthy */
+
+  /* ── Motion ────────────────────────────────────────────────── */
+  --sn-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --sn-dur-fast: 120ms;  --sn-dur: 200ms;  --sn-dur-slow: 320ms;
+}
+
+/* ── ShaderBG — canonical parameters (implemented in App.jsx) ──
+   base     : #0b1326 → #060e20 vertical wash
+   plasma   : 3-octave sine field, navy → #1b2a4d, amplitude 0.35
+   speed    : 0.06 · pause when document.hidden
+   mouse    : radial glow #4d8eff @ alpha 0.25, radius 340px, lerp 0.08
+   grid     : 48px lines rgba(173,198,255,0.05), radial fade from center
+   dither   : ±1/255 noise (kills banding on the dark ramp)
+   perf     : devicePixelRatio capped at 1.5, canvas rendered at 0.75×
+   fallback : radial-gradient(120% 90% at 70% 10%, #131b2e, #0b1326)
+              → used when WebGL unavailable OR prefers-reduced-motion
+   ──────────────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --sn-dur-fast: 0ms; --sn-dur: 0ms; --sn-dur-slow: 0ms;
+  }
+  /* ShaderBG mounts its static fallback; pulse/scanline animations off. */
+}
+
+/* ── Legacy aliases — TEMPORARY, for incremental migration ─────
+   Lets popup.css / App.jsx compile before the rename sweep lands.
+   Delete once both surfaces reference --sn-* directly.           */
+:root {
+  --bg: var(--sn-bg);         --sc: var(--sn-surface-2);
+  --sc2: var(--sn-surface-3); --on: var(--sn-text);
+  --var: var(--sn-text-2);    --dim: var(--sn-text-dim);
+  --pri: var(--sn-primary);   --grn: var(--sn-supported);
+  --amb: var(--sn-partial);   --red: var(--sn-unsupported);
+}

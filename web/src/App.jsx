@@ -10,6 +10,7 @@ import {
   LayoutDashboard, Boxes, Clock, TerminalSquare, Radar as RadarIcon, Trash2,
 } from "lucide-react";
 import { assess as apiAssess, listAssessments, listDiscovered, assessDiscovered, deleteDiscovered, getFeatures, getReadiness, verifyControl, listAlerts, listKb, getAuth, loginUrl, logout } from "./api";
+import { useToast } from "./toast.jsx";
 
 /* ============================================================ *
  * Snout — Critical Enterprise SaaS Controls console
@@ -18,14 +19,23 @@ import { assess as apiAssess, listAssessments, listDiscovered, assessDiscovered,
 
 // Data and the agent live on the server — see ./api
 
+// Palette — values mirror the canonical tokens in ./tokens.css (--sn-*). Kept as
+// hex here (not var() strings) because dozens of call sites build alpha tints by
+// concatenation (`C.x + "1a"`) and SVG attributes can't resolve var() — the same
+// pattern the v2 prototype uses. tokens.css is the source of truth; change there
+// first, mirror here.
 const C = {
   bg: "#0b1326", scLowest: "#060e20", scLow: "#131b2e", sc: "#171f33",
   scHigh: "#222a3d", scHighest: "#2d3449", bright: "#31394d",
-  on: "#dae2fd", onVar: "#c2c6d6", outline: "#8c909f", outlineVar: "#424754",
+  on: "#dae2fd", onVar: "#c2c6d6",
+  dim: "#9aa3bd",       // --sn-text-dim — minimum TEXT color (AA on raised surfaces)
+  outline: "#8c909f",   // --sn-outline — DEMOTED: borders/decoration only (fails AA as text)
+  outlineVar: "#424754",
   primary: "#adc6ff", primaryStrong: "#4d8eff", onPrimary: "#002e6a",
   secondary: "#4edea3", onSecondary: "#003824",
   tertiary: "#ffb95f", onTertiary: "#472a00",
   error: "#ffb4ab", onError: "#690005",
+  unknown: "#9aa3bd",   // --sn-unknown — moved off #8c909f (pill failed AA)
 };
 
 const CAPS = [
@@ -37,13 +47,22 @@ const CAPS = [
   { key: "tokenRevocation",label: "Token Revocation",    short: "Revocation",   icon: KeyRound,    standard: "OAuth 2.0 / CAE" },
 ];
 
+// Verdict rendering — glyph + label + color, always all three (color is never
+// the only channel). Weights are product logic; do not touch.
 const VERDICTS = {
-  supported:   { label: "Supported", weight: 100, pill: "pill-green", dot: C.secondary, Icon: Check },
-  partial:     { label: "Partial",   weight: 55,  pill: "pill-amber", dot: C.tertiary,  Icon: AlertTriangle },
-  unsupported: { label: "Not found", weight: 8,   pill: "pill-red",   dot: C.error,     Icon: X },
-  unknown:     { label: "Unverified",weight: 25,  pill: "pill-gray",  dot: C.outline,   Icon: HelpCircle },
+  supported:   { label: "Supported",   g: "✓", weight: 100, pill: "pill-green", dot: C.secondary, Icon: Check },
+  partial:     { label: "Partial",     g: "◐", weight: 55,  pill: "pill-amber", dot: C.tertiary,  Icon: AlertTriangle },
+  unsupported: { label: "Unsupported", g: "✕", weight: 8,   pill: "pill-red",   dot: C.error,     Icon: X },
+  unknown:     { label: "Unknown",     g: "?", weight: 25,  pill: "pill-gray",  dot: C.unknown,   Icon: HelpCircle },
 };
 const verdictOf = (v) => VERDICTS[v] || VERDICTS.unknown;
+
+// Provenance — quiet unbordered text, per the v2 voice rule.
+const PROV = {
+  "kb-verified": { g: "◆", label: "kb-verified", c: "#adc6ff" },
+  agent:         { g: "◇", label: "agent",       c: "#8fb5ff" },
+  "kb-proposed": { g: "◇", label: "proposed",    c: "#ffb95f" },
+};
 
 const EXTENDED = [
   { key: "discoverability",    label: "Feature discoverability",         icon: ScanSearch },
@@ -57,13 +76,19 @@ const FUNCTIONS = [
   "Third-Party Risk", "Security Architecture", "IT Engineering",
 ];
 
-function recChip(rec) {
+// Governance-outcome pill spec — glyph + label + color (mono caps, a11y exception).
+function govOf(rec) {
   switch (rec) {
-    case "Approve":                 return { bg: C.secondary, fg: C.onSecondary };
-    case "Approve with conditions": return { bg: C.tertiary,  fg: C.onTertiary };
-    case "Reject":                  return { bg: C.error,     fg: C.onError };
-    default:                        return { bg: C.scHigh,    fg: C.onVar };
+    case "Approve":                 return { g: "✓", short: "Approve",    c: C.secondary };
+    case "Approve with conditions": return { g: "◐", short: "Conditions", c: C.tertiary };
+    case "Reject":                  return { g: "✕", short: "Reject",     c: C.error };
+    case "Hold":                    return { g: "◷", short: "Hold",       c: C.primary };
+    default:                        return { g: "◷", short: rec || "—",   c: C.onVar };
   }
+}
+function GovPill({ rec, full }) {
+  const o = govOf(rec);
+  return <span className="pill" style={{ background: `${o.c}21`, borderColor: `${o.c}4d`, color: o.c }}><span aria-hidden="true">{o.g}</span>{full ? rec : o.short}</span>;
 }
 function computeScore(capabilities) {
   if (!capabilities) return 0;
@@ -71,9 +96,9 @@ function computeScore(capabilities) {
   return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
 }
 function readinessOf(score) {
-  if (score >= 80) return { label: "Controls Ready", color: C.secondary };
-  if (score >= 50) return { label: "Partial",        color: C.tertiary };
-  return { label: "Not Ready", color: C.error };
+  if (score >= 80) return { label: "Ready",     g: "✓", color: C.secondary };
+  if (score >= 50) return { label: "Partial",   g: "◐", color: C.tertiary };
+  return { label: "Not ready", g: "✕", color: C.error };
 }
 const scoreColor = (s) => (s >= 80 ? C.secondary : s >= 50 ? C.tertiary : C.error);
 const fmtDate = (iso) => { try { return new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); } catch { return ""; } };
@@ -98,8 +123,10 @@ html,body{background:${C.scLowest};}
 .ob-shader{position:fixed;inset:0;width:100%;height:100%;z-index:-10;display:block;}
 .disp{font-family:'Hanken Grotesk','Inter',sans-serif;letter-spacing:-0.01em;}
 .mono{font-family:'JetBrains Mono',ui-monospace,monospace;}
-.caps{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;line-height:1.2;}
-.txt-var{color:${C.onVar};}.txt-dim{color:${C.outline};}
+/* v2 voice: section labels are quiet Inter sentence case, not mono caps. Mono is
+   reserved for data literals; verdict/governance/band pills keep mono caps via .pill. */
+.caps{font-family:Inter,sans-serif;font-size:11px;font-weight:500;letter-spacing:0.01em;text-transform:none;line-height:1.3;color:#8f98b3;}
+.txt-var{color:${C.onVar};}.txt-dim{color:${C.dim};}
 .txt-primary{color:${C.primary};}.txt-secondary{color:${C.secondary};}.txt-tertiary{color:${C.tertiary};}.txt-error{color:${C.error};}
 .brandtext{background:linear-gradient(90deg, ${C.primary}, ${C.secondary});-webkit-background-clip:text;background-clip:text;color:transparent;}
 .panel{background:rgba(11,19,38,0.68);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.10);border-radius:0.5rem;}
@@ -107,30 +134,31 @@ html,body{background:${C.scLowest};}
 .panel-i:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,0.4), 0 0 15px rgba(173,198,255,0.10);border-color:rgba(255,255,255,0.20);}
 .glass{background:linear-gradient(135deg,rgba(49,57,77,0.45) 0%,rgba(6,14,32,0.85) 100%);border:1px solid rgba(255,255,255,0.10);border-radius:0.5rem;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);}
 .hair{border-color:rgba(255,255,255,0.08);}
-.navitem{display:flex;align-items:center;justify-content:space-between;gap:0.75rem;padding:0.7rem 0.85rem;border-radius:0.5rem;color:${C.onVar};cursor:pointer;width:100%;text-align:left;border:1px solid transparent;background:transparent;transition:background .18s,color .18s,border-color .18s;position:relative;overflow:hidden;}
-.navitem:hover{background:rgba(45,52,73,0.5);color:${C.on};border-color:rgba(255,255,255,0.10);}
-.navitem.active{color:${C.primary};background:rgba(173,198,255,0.10);border-color:rgba(173,198,255,0.30);box-shadow:inset 0 0 12px rgba(173,198,255,0.06);}
-.navlabel{display:flex;align-items:center;gap:0.7rem;position:relative;z-index:2;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;}
-.accentbar{position:absolute;left:0;top:0;bottom:0;width:3px;background:${C.primary};box-shadow:0 0 8px rgba(173,198,255,0.8);z-index:3;}
-.scanline{position:absolute;left:0;right:0;top:0;height:50%;background:linear-gradient(to bottom, transparent, rgba(173,198,255,0.14), transparent);animation:scan 2.6s linear infinite;pointer-events:none;z-index:1;}
-@keyframes scan{0%{transform:translateY(-100%);}100%{transform:translateY(220%);}}
+.navitem{display:flex;align-items:center;justify-content:space-between;gap:0.75rem;padding:0.6rem 0.75rem;border-radius:0.5rem;color:${C.dim};cursor:pointer;width:100%;text-align:left;border:0;background:transparent;transition:background .18s,color .18s;position:relative;overflow:visible;}
+.navitem:hover{background:rgba(23,31,51,0.6);color:${C.on};}
+.navitem.active{color:${C.on};background:rgba(23,31,51,0.9);}
+.navlabel{display:flex;align-items:center;gap:0.7rem;position:relative;z-index:2;font-family:Inter,sans-serif;font-size:13px;font-weight:500;letter-spacing:0;text-transform:none;}
+.accentbar{position:absolute;left:-10px;top:6px;bottom:6px;width:3px;border-radius:2px;background:linear-gradient(180deg,${C.primary},${C.secondary});box-shadow:0 0 10px rgba(173,198,255,0.5);z-index:3;}
 .dot{width:8px;height:8px;border-radius:99px;display:inline-block;}
 .pulse-green{animation:pg 2s infinite;}
 @keyframes pg{0%{box-shadow:0 0 0 0 rgba(78,222,163,0.7);}70%{box-shadow:0 0 0 6px rgba(78,222,163,0);}100%{box-shadow:0 0 0 0 rgba(78,222,163,0);}}
-.btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:0.45rem;background:${C.primary};color:${C.onPrimary};border:0;border-radius:0.25rem;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;transition:filter .12s;}
+.btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:0.45rem;background:${C.primary};color:${C.onPrimary};border:0;border-radius:0.5rem;font-family:Inter,sans-serif;font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;cursor:pointer;transition:filter .12s;}
 .btn-primary:hover{filter:brightness(1.08);}
 .btn-primary:disabled{opacity:0.45;cursor:default;filter:none;}
-.btn-ghost{display:inline-flex;align-items:center;gap:0.4rem;border:1px solid ${C.outlineVar};color:${C.onVar};background:transparent;border-radius:0.25rem;cursor:pointer;font-size:11px;transition:background .12s,border-color .12s,color .12s;}
+.btn-ghost{display:inline-flex;align-items:center;gap:0.4rem;border:1px solid ${C.outlineVar};color:${C.onVar};background:transparent;border-radius:0.5rem;cursor:pointer;font-family:Inter,sans-serif;font-size:12px;font-weight:500;transition:background .12s,border-color .12s,color .12s;}
 .btn-ghost:hover{background:${C.scHigh};border-color:${C.outline};color:${C.on};}
 .inp{width:100%;background:rgba(2,6,17,0.6);border:1px solid ${C.outlineVar};border-radius:0.25rem;color:${C.on};font-size:14px;}
 .inp::placeholder{color:${C.outline};}
 .inp:focus{outline:none;border-color:${C.primary};}
 .inp:disabled{opacity:0.5;}
-.pill{display:inline-flex;align-items:center;gap:0.25rem;border-radius:0.25rem;padding:0.12rem 0.45rem;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;white-space:nowrap;}
-.pill-green{background:rgba(78,222,163,0.13);color:${C.secondary};}
-.pill-amber{background:rgba(255,185,95,0.15);color:${C.tertiary};}
-.pill-red{background:rgba(255,180,171,0.13);color:${C.error};}
-.pill-gray{background:rgba(140,144,159,0.15);color:${C.outline};}
+/* Verdict/governance/band pills stay mono caps (accessibility exception):
+   glyph + label + color on a 13% tint bg with a 30% tint border. */
+.pill{display:inline-flex;align-items:center;gap:0.3rem;border-radius:999px;padding:0.14rem 0.55rem 0.14rem 0.45rem;font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;white-space:nowrap;border:1px solid transparent;}
+.pill-green{background:rgba(78,222,163,0.13);color:${C.secondary};border-color:rgba(78,222,163,0.30);}
+.pill-amber{background:rgba(255,185,95,0.13);color:${C.tertiary};border-color:rgba(255,185,95,0.30);}
+.pill-red{background:rgba(255,180,171,0.13);color:${C.error};border-color:rgba(255,180,171,0.30);}
+.pill-gray{background:rgba(154,163,189,0.13);color:${C.unknown};border-color:rgba(154,163,189,0.30);}
+.pill-blue{background:rgba(143,181,255,0.13);color:#8fb5ff;border-color:rgba(143,181,255,0.30);}
 .badge{font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;padding:0.1rem 0.35rem;border-radius:0.25rem;background:rgba(173,198,255,0.10);color:${C.primary};border:1px solid rgba(173,198,255,0.20);}
 .chip{display:inline-flex;align-items:center;border-radius:0.25rem;padding:0.08rem 0.4rem;background:rgba(173,198,255,0.10);color:${C.primary};font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:500;}
 .cite{display:inline-flex;align-items:center;gap:0.3rem;max-width:100%;padding:0.12rem 0.45rem;border-radius:0.25rem;background:rgba(2,6,17,0.5);color:${C.onVar};font-size:11px;text-decoration:none;transition:background .12s,color .12s;border:1px solid ${C.outlineVar};}
@@ -149,7 +177,7 @@ html,body{background:${C.scLowest};}
 .spin{animation:spin 1s linear infinite;}
 .codeblk{background:rgba(2,6,17,0.7);border:1px solid ${C.outlineVar};border-radius:0.375rem;overflow:hidden;}
 .codeblk-bar{display:flex;align-items:center;justify-content:space-between;padding:0.4rem 0.75rem;background:rgba(11,19,38,0.6);border-bottom:1px solid ${C.outlineVar};}
-@media (prefers-reduced-motion: reduce){.scanline,.pulse-green{animation:none;}}
+@media (prefers-reduced-motion: reduce){.pulse-green{animation:none;}}
 `;
 
 function Style() { return <style dangerouslySetInnerHTML={{ __html: STYLES }} />; }
@@ -171,14 +199,15 @@ function ShaderBG() {
         void main(){
           vec2 p = uv*2.0-1.0; p.x *= u_res.x/u_res.y;
           vec3 c1 = vec3(0.043,0.075,0.149); vec3 c2 = vec3(0.024,0.055,0.125); vec3 acc = vec3(0.231,0.51,0.965);
-          float t = u_time*0.2; float v = 0.0;
+          // v2 calm pass: time step ~40% slower, mouse glow x0.7, grid quieter.
+          float t = u_time*0.12; float v = 0.0;
           v += sin(p.x*2.0+t); v += sin((p.y*1.5+t)*0.5); v += sin((p.x+p.y+t)*0.7);
           vec3 col = mix(c1,c2, v*0.5+0.5);
           vec2 m = u_mouse/u_res; vec2 mP = m*2.0-1.0; mP.x *= u_res.x/u_res.y;
-          float d = length(p-mP); col += acc*(0.02/(d+0.1))*0.3;
+          float d = length(p-mP); col += acc*(0.02/(d+0.1))*0.21;
           vec2 g = fract(uv*40.0);
           float line = smoothstep(0.0,0.05,g.x)*smoothstep(1.0,0.95,g.x)*smoothstep(0.0,0.05,g.y)*smoothstep(1.0,0.95,g.y);
-          col = mix(col, col*1.1, (1.0-line)*0.1);
+          col = mix(col, col*1.1, (1.0-line)*0.06);
           gl_FragColor = vec4(col,1.0);
         }`;
       const mk = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return s; };
@@ -207,16 +236,35 @@ function ShaderBG() {
 
 /* --------------------------- UI atoms --------------------------- */
 
+// Brand mark — single-path SVG from assets/mark.svg; the brand gradient lives
+// here (and only here — buttons are solid per the v2 voice rule). The gradient
+// def is rendered ONCE globally (BrandDefs) because Logo mounts in several
+// places (some display:none) and duplicate ids break url() resolution.
+function BrandDefs() {
+  return (
+    <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true">
+      <defs>
+        <linearGradient id="sn-gsig" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#adc6ff" /><stop offset="1" stopColor="#4edea3" />
+        </linearGradient>
+        <path id="sn-mark" fillRule="evenodd" d="M38,20 L58,20 Q67,20 71.93,27.52 L81.07,41.48 Q86,49 81.07,56.52 L71.93,70.48 Q67,78 58,78 L38,78 Q29,78 24.07,70.48 L14.93,56.52 Q10,49 14.93,41.48 L24.07,27.52 Q29,20 38,20 Z M31.63,51.25 a6,10.5 12 1,0 11.74,2.50 a6,10.5 12 1,0 -11.74,-2.50 Z M52.63,53.75 a6,10.5 -12 1,0 11.74,-2.50 a6,10.5 -12 1,0 -11.74,2.50 Z" />
+      </defs>
+    </svg>
+  );
+}
+function SnoutMark({ size = 28 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 96 96" aria-hidden="true">
+      <use href="#sn-mark" fill="url(#sn-gsig)" />
+    </svg>
+  );
+}
+
 function Logo({ compact }) {
   return (
-    <div className="flex items-center gap-3">
-      <div className="grid place-items-center shrink-0" style={{ width: compact ? 34 : 40, height: compact ? 34 : 40, borderRadius: 8, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryStrong})`, color: C.onPrimary, boxShadow: "0 0 15px rgba(173,198,255,0.3)", border: "1px solid rgba(173,198,255,0.3)" }}>
-        <ShieldCheck className="w-5 h-5" strokeWidth={2.3} />
-      </div>
-      <div className="leading-tight">
-        <div className="disp brandtext" style={{ fontSize: compact ? 16 : 18, fontWeight: 800 }}>Snout</div>
-        <div className="mono txt-secondary" style={{ fontSize: 9.5, letterSpacing: "0.18em", marginTop: 2, textTransform: "uppercase" }}>IPSIE Controls</div>
-      </div>
+    <div className="flex items-center" style={{ gap: 10 }}>
+      <SnoutMark size={compact ? 24 : 28} />
+      <span className="disp" style={{ fontSize: compact ? 17 : 19, fontWeight: 800, color: C.on, letterSpacing: "-0.015em" }}>snout</span>
     </div>
   );
 }
@@ -246,7 +294,7 @@ function CapStrip({ capabilities }) {
     </div>
   );
 }
-function VerdictPill({ verdict }) { const v = verdictOf(verdict); return <span className={`pill ${v.pill}`}><v.Icon className="w-3 h-3" />{v.label}</span>; }
+function VerdictPill({ verdict }) { const v = verdictOf(verdict); return <span className={`pill ${v.pill}`}><span aria-hidden="true">{v.g}</span>{v.label}</span>; }
 
 function safeHref(u) {
   try { const x = new URL(u); return (x.protocol === "http:" || x.protocol === "https:") ? x.href : null; }
@@ -296,7 +344,6 @@ function KpiTile({ label, value, sub, subColor, Icon }) {
 }
 
 function AssessmentRow({ a, onOpen }) {
-  const rc = recChip(a.recommendation);
   return (
     <button onClick={() => onOpen(a.id)} className="rowlink px-4 py-3 group">
       <ScoreDial score={a.score} size={46} />
@@ -305,65 +352,157 @@ function AssessmentRow({ a, onOpen }) {
           <span className="disp truncate" style={{ fontWeight: 600, fontSize: 15, color: C.on }}>{a.app}</span>
           {a.vendor && <span className="mono txt-dim truncate" style={{ fontSize: 11 }}>· {a.vendor}</span>}
         </div>
-        <div className="flex items-center gap-3 mt-1.5"><CapStrip capabilities={a.capabilities} /><span className="mono txt-dim" style={{ fontSize: 10 }}>{a.category}</span></div>
+        <div className="flex items-center gap-3 mt-1.5"><CapStrip capabilities={a.capabilities} /><span className="txt-dim" style={{ fontSize: 11, fontFamily: "Inter, sans-serif" }}>{a.category}</span></div>
       </div>
-      <span className="pill" style={{ background: "transparent", color: rc.bg, border: `1px solid ${rc.bg}66` }}>{a.recommendation}</span>
-      <span className="mono txt-dim hidden sm:block" style={{ fontSize: 10, width: 92, textAlign: "right" }}>{ago(a.assessedAt)}</span>
+      <GovPill rec={a.recommendation} />
+      <span className="txt-dim hidden sm:block" style={{ fontSize: 11, width: 92, textAlign: "right", fontFamily: "Inter, sans-serif" }}>{ago(a.assessedAt)}</span>
       <ChevronRight className="w-4 h-4 txt-dim group-hover:text-white" />
     </button>
   );
 }
 
-/* --------------------------- Command Center --------------------------- */
+/* --------------------------- Command Center (v2) --------------------------- */
 
-function CommandCenter({ assessments, onOpen, onNew, goCatalog, onDemo }) {
+// Short mono column headers for the coverage matrix, per control.
+const MATRIX_COLS = { sso: "SSO", ulm: "SCIM", entitlements: "ENTITLE", riskSignals: "CAEP/SSF", logout: "LOGOUT", tokenRevocation: "REVOKE" };
+
+// Vendors × controls grid — makes systemic weaknesses (one control failing
+// everywhere) visible without opening each assessment.
+function CoverageMatrix({ assessments, onOpen }) {
+  const weakest = useMemo(() => {
+    let weak = null;
+    for (const c of CAPS) {
+      const n = assessments.filter((a) => a.capabilities?.[c.key]?.verdict === "supported").length;
+      if (!weak || n < weak.n) weak = { n, label: c.label };
+    }
+    return weak;
+  }, [assessments]);
+  return (
+    <div className="panel" style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+      <div className="flex items-center gap-3 px-4 py-3 border-b hair">
+        <span style={{ font: "600 13px Inter, sans-serif", color: C.on, flex: "none" }}>Control coverage</span>
+        {weakest && <span className="txt-dim" style={{ marginLeft: "auto", fontSize: 11.5, textAlign: "right" }}>Weakest: {weakest.label} — supported by {weakest.n} of {assessments.length}</span>}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1.1fr repeat(6, 1fr)", gap: "0 10px", padding: "9px 16px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <span className="caps">Vendor</span>
+        {CAPS.map((c) => <span key={c.key} className="mono" style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: "0.05em", color: "#8f98b3", textAlign: "center", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{MATRIX_COLS[c.key]}</span>)}
+      </div>
+      {assessments.map((a) => (
+        <button key={a.id} onClick={() => onOpen(a.id)} style={{ display: "grid", gridTemplateColumns: "1.1fr repeat(6, 1fr)", gap: "0 10px", alignItems: "center", padding: "7px 16px", borderBottom: "1px solid rgba(255,255,255,0.04)", cursor: "pointer", width: "100%", background: "transparent", border: 0, textAlign: "left" }} className="tbl-row">
+          <span style={{ font: "500 12.5px Inter, sans-serif", color: C.on, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.app}</span>
+          {CAPS.map((c) => {
+            const cap = a.capabilities?.[c.key] || {};
+            const v = verdictOf(cap.verdict);
+            const conf = typeof cap.confidence === "number" ? ` · ${Math.round(cap.confidence * 100)}% conf` : "";
+            return <span key={c.key} title={`${c.label}: ${v.label.toLowerCase()}${conf}`} style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 24, borderRadius: 6, background: `${v.dot}1a`, color: v.dot, font: "700 11px 'JetBrains Mono', monospace" }}>{v.g}</span>;
+          })}
+        </button>
+      ))}
+      <div className="flex items-center flex-wrap px-4" style={{ gap: 14, padding: "9px 16px" }}>
+        {Object.values(VERDICTS).map((v) => <span key={v.label} className="txt-dim" style={{ fontSize: 10.5 }}>{v.g} {v.label.toLowerCase()}</span>)}
+        <span className="txt-dim" style={{ marginLeft: "auto", fontSize: 10.5 }}>Click a row for its packet</span>
+      </div>
+    </div>
+  );
+}
+
+// Live queue of everything waiting on the operator — real state only.
+function NeedsAttention({ kbPending, kbStale, discoveredUnassessed, goKnowledge, goDiscovered }) {
+  const items = [
+    { g: "◇", c: "#ffb95f", text: `${kbPending} KB proposal${kbPending === 1 ? "" : "s"} awaiting verification`, show: kbPending > 0, go: goKnowledge },
+    { g: "◷", c: "#ffb95f", text: `${kbStale} stale evidence item${kbStale === 1 ? "" : "s"} (>180d)`, show: kbStale > 0, go: goKnowledge },
+    { g: "●", c: "#8fb5ff", text: `${discoveredUnassessed} discovered vendor${discoveredUnassessed === 1 ? "" : "s"} unassessed`, show: discoveredUnassessed > 0, go: goDiscovered },
+  ].filter((x) => x.show);
+  return (
+    <div className="panel" style={{ width: 280, flex: "none", padding: "14px 16px" }}>
+      <div style={{ font: "600 12.5px Inter, sans-serif", color: C.onVar, marginBottom: 6 }}>Needs attention</div>
+      {items.length === 0 ? (
+        <div className="txt-dim" style={{ fontSize: 12, lineHeight: 1.5, padding: "6px 0" }}>All clear — nothing waiting on you. ✓</div>
+      ) : items.map((x, i) => (
+        <button key={i} onClick={x.go} className="tbl-row" style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 6px", borderRadius: 8, margin: "0 -6px", cursor: "pointer", borderBottom: "1px solid rgba(255,255,255,0.05)", width: "calc(100% + 12px)", background: "transparent", border: 0, textAlign: "left" }}>
+          <span aria-hidden="true" style={{ fontSize: 11, flex: "none", color: x.c }}>{x.g}</span>
+          <span style={{ font: "400 12px/1.4 Inter, sans-serif", color: C.onVar, minWidth: 0 }}>{x.text}</span>
+          <span aria-hidden="true" style={{ marginLeft: "auto", flex: "none", color: C.dim, fontSize: 11 }}>→</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function CommandCenter({ assessments, discovered, kbPending, kbStale, kbCount, readiness, onOpen, onNew, goCatalog, goDiscovered, goKnowledge, onAssessDiscovered, busyDomain, onDemo }) {
   const stats = useMemo(() => {
     const n = assessments.length;
     const avg = n ? Math.round(assessments.reduce((a, x) => a + x.score, 0) / n) : 0;
     const ready = assessments.filter((x) => x.score >= 80).length;
-    const attention = assessments.filter((x) => x.recommendation === "Reject" || x.recommendation === "Hold" || x.score < 50);
-    return { n, avg, ready, attention };
+    return { n, avg, ready };
   }, [assessments]);
   const recent = useMemo(() => [...assessments].sort((a, b) => new Date(b.assessedAt) - new Date(a.assessedAt)).slice(0, 6), [assessments]);
+  const unassessed = useMemo(() => (discovered || []).filter((d) => !d.assessment), [discovered]);
+  const band = readinessOf(stats.avg);
   if (stats.n === 0) return <EmptyState onNew={onNew} onDemo={onDemo} />;
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
-        <div className="glass p-5 flex flex-col items-center justify-center text-center relative" style={{ minHeight: 196 }}>
-          <div className="absolute top-4 left-4 flex items-center gap-2"><Shield className="w-4 h-4 txt-primary" /><span className="caps txt-var">Portfolio Trust</span></div>
-          <ScoreDial score={stats.avg} size={120} />
-          <p className="txt-var" style={{ fontSize: 12, marginTop: 14 }}>Mean control score across {stats.n} assessed {stats.n === 1 ? "app" : "apps"}.</p>
+      {/* Hero metric */}
+      <div className="panel flex items-center flex-wrap" style={{ gap: 32, borderRadius: 14, padding: "20px 26px" }}>
+        <div style={{ flex: "none" }}>
+          <div style={{ font: "500 12.5px Inter, sans-serif", color: C.dim }}>Portfolio trust</div>
+          <div className="flex items-center" style={{ gap: 14, marginTop: 4 }}>
+            <span className="disp" style={{ fontSize: 50, fontWeight: 800, lineHeight: 1, color: C.on }}>{stats.avg}</span>
+            <span className="pill" style={{ background: `${band.color}21`, borderColor: `${band.color}4d`, color: band.color }}>{band.g} {band.label}</span>
+          </div>
+          <div style={{ font: "400 12px Inter, sans-serif", color: C.dim, marginTop: 7 }}>Mean score of {stats.n} assessed {stats.n === 1 ? "vendor" : "vendors"}</div>
         </div>
-        <div className="lg:col-span-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <KpiTile label="Apps assessed" value={stats.n} sub="in catalog" Icon={Boxes} />
-          <KpiTile label="Controls ready" value={stats.ready} sub="score ≥ 80" subColor={C.secondary} Icon={ShieldCheck} />
-          <KpiTile label="Needs attention" value={stats.attention.length} sub="hold · reject · low" subColor={C.error} Icon={AlertTriangle} />
+        <div style={{ width: 1, alignSelf: "stretch", background: "rgba(255,255,255,0.08)" }} />
+        <div className="flex items-center flex-wrap" style={{ gap: 38 }}>
+          <div><div className="disp" style={{ fontSize: 26, fontWeight: 700, lineHeight: 1, color: C.on }}>{stats.ready}</div><div style={{ font: "400 12px Inter, sans-serif", color: C.dim, marginTop: 5 }}>Controls Ready · ≥80</div></div>
+          <div><div className="disp" style={{ fontSize: 26, fontWeight: 700, lineHeight: 1, color: C.on }}>{stats.n}</div><div style={{ font: "400 12px Inter, sans-serif", color: C.dim, marginTop: 5 }}>Assessed vendors</div></div>
+          <div><div className="disp" style={{ fontSize: 26, fontWeight: 700, lineHeight: 1, color: C.tertiary }}>{unassessed.length}</div><div style={{ font: "400 12px Inter, sans-serif", color: C.dim, marginTop: 5 }}>Discovered, unassessed</div></div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-        <div className="lg:col-span-2 panel">
+      {/* Recent + right rail */}
+      <div className="flex flex-wrap items-start" style={{ gap: 16 }}>
+        <div className="panel" style={{ flex: 1, minWidth: 320, overflow: "hidden" }}>
           <div className="flex items-center justify-between px-4 py-3 border-b hair">
-            <h3 className="caps txt-var">Recent assessments</h3>
-            <button onClick={goCatalog} className="mono txt-primary flex items-center gap-1" style={{ fontSize: 11, background: "transparent", border: 0, cursor: "pointer" }}>View all <ChevronRight className="w-3 h-3" /></button>
+            <span style={{ font: "600 13px Inter, sans-serif", color: C.on }}>Recent assessments</span>
+            <button onClick={goCatalog} style={{ font: "500 12px Inter, sans-serif", color: C.primary, background: "transparent", border: 0, cursor: "pointer" }}>View all →</button>
           </div>
           <div>{recent.map((a) => <div key={a.id} className="border-b" style={{ borderColor: "rgba(255,255,255,0.05)" }}><AssessmentRow a={a} onOpen={onOpen} /></div>)}</div>
         </div>
-        <div className="panel">
-          <div className="flex items-center justify-between px-4 py-3 border-b hair"><h3 className="caps txt-var">Needs attention</h3><span className="pill pill-red">{stats.attention.length}</span></div>
-          <div className="p-3 space-y-2">
-            {stats.attention.length === 0 ? (
-              <div className="px-1 py-6 text-center txt-dim" style={{ fontSize: 12 }}>No flagged apps. Portfolio is clean.</div>
-            ) : stats.attention.slice(0, 4).map((a) => (
-              <button key={a.id} onClick={() => onOpen(a.id)} className="panel-i w-full text-left p-3" style={{ cursor: "pointer" }}>
-                <div className="flex items-center justify-between"><span className="chip">{a.category}</span><span className="mono txt-dim" style={{ fontSize: 10 }}>{ago(a.assessedAt)}</span></div>
-                <div className="disp" style={{ fontSize: 14, fontWeight: 600, marginTop: 6, color: C.on }}>{a.app} <span className="txt-error" style={{ fontSize: 12 }}>· {a.recommendation}</span></div>
-                <p className="txt-var" style={{ fontSize: 12, marginTop: 4, lineHeight: 1.5 }}>{a.risks?.[0] || a.summary}</p>
-              </button>
+        <div style={{ width: 280, flex: "none", display: "flex", flexDirection: "column", gap: 14 }}>
+          <div className="panel" style={{ padding: "14px 16px" }}>
+            <div style={{ font: "600 12.5px Inter, sans-serif", color: C.onVar, marginBottom: 10 }}>System</div>
+            <div className="flex justify-between" style={{ marginBottom: 8 }}><span style={{ font: "400 12px Inter, sans-serif", color: C.dim }}>Engine</span><span className="mono" style={{ fontSize: 10.5, fontWeight: 700, color: C.secondary, whiteSpace: "nowrap" }}>✓ v1.0.0</span></div>
+            <div className="flex justify-between" style={{ marginBottom: 8 }}><span style={{ font: "400 12px Inter, sans-serif", color: C.dim }}>Grounding</span><span className="mono" style={{ fontSize: 10.5, fontWeight: 700, whiteSpace: "nowrap", color: readiness?.webSearch ? C.secondary : C.tertiary }}>{readiness?.webSearch ? "✓ Full · cited" : "◐ Reduced · capped"}</span></div>
+            <div className="flex justify-between" style={{ marginBottom: 8 }}><span style={{ font: "400 12px Inter, sans-serif", color: C.dim }}>Knowledge base</span><span className="mono" style={{ fontSize: 10.5, fontWeight: 700, color: C.onVar, whiteSpace: "nowrap" }}>{kbCount != null ? `${kbCount} vendors` : "—"}</span></div>
+            <div className="flex justify-between"><span style={{ font: "400 12px Inter, sans-serif", color: C.dim }}>Store</span><span className="mono" style={{ fontSize: 10.5, fontWeight: 700, color: C.onVar, whiteSpace: "nowrap" }}>{readiness?.store || "—"}</span></div>
+          </div>
+          <div className="panel" style={{ padding: "14px 16px" }}>
+            <div className="flex items-center" style={{ marginBottom: 6 }}>
+              <span style={{ font: "600 12.5px Inter, sans-serif", color: C.onVar }}>Discovery feed</span>
+              <button onClick={goDiscovered} style={{ marginLeft: "auto", font: "500 12px Inter, sans-serif", color: C.primary, background: "transparent", border: 0, cursor: "pointer" }}>All →</button>
+            </div>
+            {unassessed.length === 0 ? (
+              <div className="txt-dim" style={{ fontSize: 12, padding: "6px 0" }}>Nothing unassessed. ✓</div>
+            ) : unassessed.slice(0, 2).map((d) => (
+              <div key={d.domain} className="flex items-center" style={{ gap: 9, padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                <span className="mono" style={{ width: 26, height: 26, borderRadius: 7, background: C.scHigh, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: C.onVar, flex: "none" }}>{(d.name || d.domain).charAt(0).toUpperCase()}</span>
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ display: "block", font: "500 12px Inter, sans-serif", color: C.on, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.name || d.domain}</span>
+                  <span style={{ font: "500 10.5px Inter, sans-serif", color: d.methods?.sso ? C.secondary : d.methods?.password ? C.error : C.tertiary }}>{d.methods?.sso ? "✓ Corp SSO" : d.methods?.password ? "✕ Password" : "◐ Ungoverned"}</span>
+                </span>
+                <button onClick={() => onAssessDiscovered(d.domain)} disabled={busyDomain === d.domain} style={{ marginLeft: "auto", flex: "none", font: "500 11.5px Inter, sans-serif", color: C.primary, background: "transparent", border: 0, cursor: "pointer" }}>{busyDomain === d.domain ? "…" : "Assess →"}</button>
+              </div>
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Coverage matrix + needs attention */}
+      <div className="flex flex-wrap items-start" style={{ gap: 16 }}>
+        <CoverageMatrix assessments={assessments} onOpen={onOpen} />
+        <NeedsAttention kbPending={kbPending} kbStale={kbStale} discoveredUnassessed={unassessed.length} goKnowledge={goKnowledge} goDiscovered={goDiscovered} />
       </div>
     </div>
   );
@@ -480,9 +619,27 @@ function ControlVerify({ a, controlKey, current, onVerify }) {
   );
 }
 
+// Radar affordances (color never stands alone): verdict-colored vertex dots and
+// weight values in the axis labels.
+function RadarDot({ cx, cy, payload }) {
+  if (cx == null || cy == null) return null;
+  return <circle cx={cx} cy={cy} r={3.5} fill={payload?.dotColor || C.primary} stroke={C.scLowest} strokeWidth={1} />;
+}
+function RadarTick({ x, y, textAnchor, payload, data }) {
+  const d = data.find((r) => r.cap === payload.value);
+  return (
+    <text x={x} y={y} textAnchor={textAnchor} fill={C.dim} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700 }}>
+      {payload.value} {d ? d.value : ""}
+    </text>
+  );
+}
+
 function Detail({ a, onBack, onReassess, onVerify }) {
-  const radarData = CAPS.map((c) => ({ cap: c.short, value: verdictOf(a.capabilities?.[c.key]?.verdict).weight }));
-  const rc = recChip(a.recommendation); const readiness = readinessOf(a.score); const band = scoreColor(a.score);
+  const radarData = CAPS.map((c) => {
+    const v = verdictOf(a.capabilities?.[c.key]?.verdict);
+    return { cap: c.short, value: v.weight, dotColor: v.dot };
+  });
+  const readiness = readinessOf(a.score); const band = scoreColor(a.score);
   return (
     <div className="space-y-4">
       <button onClick={onBack} className="flex items-center gap-1 txt-var" style={{ background: "transparent", border: 0, cursor: "pointer", fontSize: 13 }}><ArrowLeft className="w-4 h-4" /> Command Center</button>
@@ -493,13 +650,13 @@ function Detail({ a, onBack, onReassess, onVerify }) {
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="disp" style={{ fontSize: 22, fontWeight: 700, color: C.on }}>{a.app}</h1>
               {a.vendor && <span className="mono txt-dim" style={{ fontSize: 12 }}>{a.vendor}</span>}
-              <span className="pill" style={{ background: "transparent", color: readiness.color, border: `1px solid ${readiness.color}66` }}>{readiness.label}</span>
+              <span className="pill" style={{ background: `${readiness.color}21`, borderColor: `${readiness.color}4d`, color: readiness.color }}><span aria-hidden="true">{readiness.g}</span>{readiness.label}</span>
             </div>
             <p className="txt-var" style={{ fontSize: 14, marginTop: 8, lineHeight: 1.6 }}>{a.summary}</p>
             <div className="flex items-center gap-2 mono txt-dim" style={{ fontSize: 11, marginTop: 10 }}><span>{a.category}</span><span>·</span><Clock className="w-3 h-3" /><span>assessed {fmtDate(a.assessedAt)}</span></div>
           </div>
           <div className="md:w-44 shrink-0">
-            <div className="panel p-3"><div className="caps txt-dim">Verdict</div><div className="pill mt-1.5" style={{ background: rc.bg, color: rc.fg, fontSize: 11, padding: "0.25rem 0.6rem" }}>{a.recommendation}</div></div>
+            <div className="panel p-3"><div className="caps">Verdict</div><div className="mt-1.5"><GovPill rec={a.recommendation} full /></div></div>
             <button onClick={onReassess} className="btn-ghost w-full mt-2 justify-center" style={{ padding: "0.4rem", fontSize: 11 }}><RefreshCw className="w-3 h-3" /> Re-assess</button>
           </div>
         </div>
@@ -512,12 +669,12 @@ function Detail({ a, onBack, onReassess, onVerify }) {
             <ResponsiveContainer width="100%" height="100%">
               <RadarChart data={radarData} outerRadius="72%">
                 <PolarGrid stroke={C.outlineVar} />
-                <PolarAngleAxis dataKey="cap" tick={{ fontSize: 10, fill: C.onVar, fontFamily: "JetBrains Mono" }} />
-                <Radar dataKey="value" stroke={band} fill={band} fillOpacity={0.18} strokeWidth={2} />
+                <PolarAngleAxis dataKey="cap" tick={<RadarTick data={radarData} />} />
+                <Radar dataKey="value" stroke={band} fill={band} fillOpacity={0.18} strokeWidth={2} dot={<RadarDot />} isAnimationActive={false} />
               </RadarChart>
             </ResponsiveContainer>
           </div>
-          <p className="mono txt-dim" style={{ fontSize: 10.5, lineHeight: 1.6, marginTop: 4 }}>Score = mean of six control weights (Supported 100 · Partial 55 · Unverified 25 · Not found 8). Auditable, not a black box.</p>
+          <p className="txt-dim" style={{ fontSize: 11.5, lineHeight: 1.6, marginTop: 4, fontFamily: "Inter, sans-serif" }}>Score = mean of six control weights (<span className="mono" style={{ fontSize: 10.5 }}>✓ 100 · ◐ 55 · ? 25 · ✕ 8</span>). Auditable, not a black box.</p>
         </div>
         <div className="panel p-5 lg:col-span-2">
           <h3 className="disp flex items-center gap-1.5" style={{ fontSize: 15, fontWeight: 600, color: C.on }}><ListChecks className="w-4 h-4 txt-primary" /> Governance decision packet</h3>
@@ -547,10 +704,9 @@ function Detail({ a, onBack, onReassess, onVerify }) {
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <VerdictPill verdict={cap.verdict} />
-                    <div className="flex items-center gap-1">
-                      {cap.source === "kb-verified" && <span className="pill pill-green" style={{ fontSize: 8.5, padding: "0.05rem 0.35rem" }}>✓ KB verified</span>}
-                      {cap.source === "kb-proposed" && <span className="pill pill-gray" style={{ fontSize: 8.5, padding: "0.05rem 0.35rem" }}>KB proposed</span>}
-                      {typeof cap.confidence === "number" && <span className="mono txt-dim" style={{ fontSize: 9.5 }}>{Math.round(cap.confidence * 100)}%</span>}
+                    <div className="flex items-center gap-2">
+                      {PROV[cap.source] && <span style={{ font: "500 11px Inter, sans-serif", color: PROV[cap.source].c }}><span aria-hidden="true">{PROV[cap.source].g}</span> {PROV[cap.source].label}</span>}
+                      {typeof cap.confidence === "number" && <span style={{ font: "400 11px Inter, sans-serif", color: C.dim }}>{Math.round(cap.confidence * 100)}% conf</span>}
                     </div>
                   </div>
                 </div>
@@ -874,21 +1030,22 @@ function KbRow({ v, c, saving, onVerify }) {
   const [verdict, setVerdict] = useState(f?.verdict || "supported");
   const stale = f?.source === "human" && f?.verifiedAt && Date.now() - new Date(f.verifiedAt).getTime() > STALE_MS;
   const busy = saving === v.domain + c.key;
-  const badge = !f ? null
-    : f.source === "human" ? { t: "✓ verified", cls: "pill-green" }
-    : f.source === "agent" ? { t: "proposed", cls: "pill-blue" }
-    : { t: "seed", cls: "pill-gray" };
+  const prov = !f ? null
+    : f.source === "human" ? { g: "◆", t: "kb-verified", c: "#adc6ff" }
+    : f.source === "agent" ? { g: "◇", t: "proposed", c: "#ffb95f" }
+    : { g: "◇", t: "seed", c: "#8fb5ff" };
+  const staleDays = stale ? Math.round((Date.now() - new Date(f.verifiedAt).getTime()) / 864e5) : 0;
   return (
     <div className="flex items-center gap-2 px-4 py-2.5 border-b" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
       <div className="shrink-0" style={{ width: 150 }}>
         <div className="disp" style={{ fontSize: 13, fontWeight: 600, color: C.on }}>{c.label}</div>
         <div className="mono txt-dim" style={{ fontSize: 10 }}>{c.standard}</div>
       </div>
-      <div className="flex-1 flex items-center gap-1.5 flex-wrap">
+      <div className="flex-1 flex items-center gap-2 flex-wrap">
         <VerdictPill verdict={f?.verdict} />
-        {badge && <span className={`pill ${badge.cls}`} style={{ fontSize: 9, padding: "0.05rem 0.35rem" }}>{badge.t}</span>}
-        {typeof f?.confidence === "number" && <span className="mono txt-dim" style={{ fontSize: 9.5 }}>{Math.round(f.confidence * 100)}%</span>}
-        {stale && <span className="pill pill-amber" style={{ fontSize: 9, padding: "0.05rem 0.35rem" }}>stale</span>}
+        {prov && <span style={{ font: "500 11px Inter, sans-serif", color: prov.c }}><span aria-hidden="true">{prov.g}</span> {prov.t}</span>}
+        {typeof f?.confidence === "number" && <span style={{ font: "400 11px Inter, sans-serif", color: C.dim }}>{Math.round(f.confidence * 100)}%</span>}
+        {stale && <span style={{ font: "500 11px Inter, sans-serif", color: C.tertiary }}>◷ stale {staleDays}d</span>}
       </div>
       <div className="flex items-center gap-1.5 shrink-0">
         <select value={verdict} onChange={(e) => setVerdict(e.target.value)} className="inp" style={{ padding: "0.15rem 0.35rem", fontSize: 10, width: "auto" }}>
@@ -900,9 +1057,10 @@ function KbRow({ v, c, saving, onVerify }) {
   );
 }
 
-function KnowledgeView() {
+function KnowledgeView({ onKbChange }) {
   const [vendors, setVendors] = useState(null);
   const [saving, setSaving] = useState(null);
+  const toast = useToast();
   const load = useCallback(async () => { try { setVendors(await listKb()); } catch { setVendors([]); } }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -910,8 +1068,13 @@ function KnowledgeView() {
 
   const verify = async (domain, vendor, control, verdict) => {
     setSaving(domain + control);
-    try { await verifyControl(domain, control, { verdict, vendor, verifiedBy: "dashboard" }); await load(); }
-    catch (e) { alert(e.message || "Verify failed"); }
+    try {
+      await verifyControl(domain, control, { verdict, vendor, verifiedBy: "dashboard" });
+      await load();
+      toast("success", "Published to the knowledge base", `${vendor} · ${control} verified as ${verdict}. It's now a trusted prior for future assessments.`);
+      if (onKbChange) onKbChange();
+    }
+    catch (e) { toast("error", "Verify failed", e.message || "The knowledge-base write did not go through."); }
     finally { setSaving(null); }
   };
 
@@ -919,12 +1082,15 @@ function KnowledgeView() {
   const verifyAll = async (v) => {
     setSaving(v.domain + "*");
     try {
+      let n = 0;
       for (const c of CAPS) {
         const f = v.controls?.[c.key];
-        if (f && f.source !== "human") await verifyControl(v.domain, c.key, { verdict: f.verdict, vendor: v.vendor, verifiedBy: "dashboard" });
+        if (f && f.source !== "human") { await verifyControl(v.domain, c.key, { verdict: f.verdict, vendor: v.vendor, verifiedBy: "dashboard" }); n++; }
       }
       await load();
-    } catch (e) { alert(e.message || "Bulk verify failed"); }
+      toast("success", "Bulk verify complete", `${n} fact${n === 1 ? "" : "s"} for ${v.vendor} promoted to human-verified.`);
+      if (onKbChange) onKbChange();
+    } catch (e) { toast("error", "Bulk verify failed", e.message || "Some facts may not have been saved — the queue reflects what went through."); }
     finally { setSaving(null); }
   };
 
@@ -994,7 +1160,7 @@ function KnowledgeView() {
 function NavItem({ icon: Icon, label, active, onClick, indicator }) {
   return (
     <button onClick={onClick} className={`navitem ${active ? "active" : ""}`}>
-      {active && <><div className="accentbar" /><div className="scanline" /></>}
+      {active && <div className="accentbar" />}
       <span className="navlabel"><Icon className="w-4 h-4" /> {label}</span>
       <span style={{ position: "relative", zIndex: 2 }}>{indicator}</span>
     </button>
@@ -1006,7 +1172,7 @@ function Terminal({ busy, onRun }) {
   const go = () => { const t = val.trim(); if (t && !busy) { onRun(t); setVal(""); } };
   return (
     <div className="terminal p-3">
-      <div className="flex justify-between items-center caps txt-dim" style={{ fontSize: 9, marginBottom: 6 }}><span>Quick Command</span><span>v1.0</span></div>
+      <div className="flex justify-between items-center" style={{ marginBottom: 6 }}><span style={{ font: "500 11px Inter, sans-serif", color: C.dim }}>Quick command</span><span className="mono" style={{ fontSize: 9.5, color: C.dim }}>v1.0</span></div>
       <div className="flex items-center gap-2">
         <span className="mono txt-secondary" style={{ animation: "pg 2s infinite", fontSize: 12 }}>{busy ? "…" : ">"}</span>
         <input className="term-input" value={val} disabled={busy} onChange={(e) => setVal(e.target.value)} onKeyDown={(e) => e.key === "Enter" && go()} placeholder={busy ? "Assessing…" : "Assess an app…"} />
@@ -1024,7 +1190,7 @@ const NAV = [
   { key: "knowledge", label: "Knowledge", icon: ListChecks },
   { key: "integrations", label: "Integrations", icon: Network },
 ];
-const TITLES = { command: "Command Center", catalog: "Assessments", discovered: "Discovered Apps", knowledge: "Knowledge Base", assess: "New Assessment", integrations: "Integrations" };
+const TITLES = { command: "Command Center", catalog: "Assessments", discovered: "Discovered", knowledge: "Knowledge", assess: "New assessment", integrations: "Integrations" };
 
 export default function App() {
   const [view, setView] = useState("command");
@@ -1043,10 +1209,22 @@ export default function App() {
   const [auth, setAuth] = useState({ oidcEnabled: false, authenticated: true });
   const [readiness, setReadiness] = useState(null); // null until loaded / when backend unreachable
   const [demoMode, setDemoMode] = useState(false);  // runtime sample-data mode (no key/server needed)
+  const [kb, setKb] = useState(null);               // KB vendor list (for coverage + attention queues)
+  const [events, setEvents] = useState([]);         // engine feed — REAL events only, newest first
+  const toast = useToast();
+
+  // Engine feed logger. kinds: ok ✓ · info ▸ · warn ◐ · err ✕ · disc ● · kb ◆
+  const logEvent = useCallback((kind, text) => {
+    const t = new Date().toLocaleTimeString("en-GB", { hour12: false });
+    setEvents((ev) => [{ t, kind, text }, ...ev].slice(0, 40));
+  }, []);
 
   const refreshDiscovered = useCallback(async () => {
     try { setDiscovered(await listDiscovered()); } catch { /* offline */ }
     try { setAlerts(await listAlerts()); } catch { /* offline */ }
+  }, []);
+  const refreshKb = useCallback(async () => {
+    try { setKb(await listKb()); } catch { /* offline */ }
   }, []);
 
   // Load demo sample data into state (runtime, no server). Persisted so it survives reload.
@@ -1056,15 +1234,20 @@ export default function App() {
     setDiscovered([...m.DEMO_DISCOVERED]);
     setAlerts([]); setFeatures({ catalog: true });
     setReadiness({ assessReady: true, provider: "demo", model: "sample data", webSearch: true, store: "demo", catalog: true, webhooks: false, oidc: false });
+    setKb([]);
     setDemoMode(true); setCurrentId(null); setView("command"); setLoaded(true);
     try { localStorage.setItem("snout_demo", "1"); } catch { /* ignore */ }
-  }, []);
+    logEvent("info", "Sample data loaded — nothing here is real");
+  }, [logEvent]);
   const exitDemo = useCallback(() => {
     try { localStorage.removeItem("snout_demo"); } catch { /* ignore */ }
     window.location.reload(); // cleanly reset to live state
   }, []);
 
+  const bootedRef = useRef(false);
   useEffect(() => {
+    if (bootedRef.current) return; // StrictMode double-invokes effects in dev
+    bootedRef.current = true;
     (async () => {
       // Sample-data mode short-circuits the live API entirely. Triggerable via a
       // persisted flag or a shareable ?demo=1 link (handy for UAT walkthroughs).
@@ -1079,7 +1262,11 @@ export default function App() {
       if (a.oidcEnabled && !a.authenticated) { setLoaded(true); return; }
       const f = await getFeatures();
       setFeatures(f);
-      setReadiness(await getReadiness());
+      const r = await getReadiness();
+      setReadiness(r);
+      if (r === null) logEvent("err", "Backend unreachable — reads unavailable");
+      else if (!r.assessReady) logEvent("info", "Setup needed — provider key missing");
+      else logEvent("ok", `Engine online — ${r.provider} · ${r.webSearch ? "full grounding" : "reduced grounding"}`);
       try {
         const list = await listAssessments();
         setAssessments(list);
@@ -1087,21 +1274,44 @@ export default function App() {
         if (id && list.some((x) => x.id === id)) { setCurrentId(id); setView("detail"); }
       } catch { /* offline / empty */ }
       if (f.catalog) refreshDiscovered();
+      refreshKb();
       setLoaded(true);
     })();
-  }, [refreshDiscovered, enterDemo]);
+  }, [refreshDiscovered, refreshKb, enterDemo, logEvent]);
+
+  // Honest heartbeat: a real /api/config round-trip once a minute (skipped in demo
+  // mode and while the tab is hidden). Logs the measured latency — never invented.
+  useEffect(() => {
+    if (demoMode || !loaded) return undefined;
+    const tick = async () => {
+      if (document.hidden) return;
+      const t0 = performance.now();
+      const r = await getReadiness();
+      const ms = Math.round(performance.now() - t0);
+      if (r === null) { logEvent("err", "Heartbeat failed — API unreachable"); setReadiness(null); }
+      else { logEvent("info", `Heartbeat OK — engine ${ms}ms`); setReadiness(r); }
+    };
+    const iv = setInterval(tick, 60000);
+    return () => clearInterval(iv);
+  }, [demoMode, loaded, logEvent]);
 
   const handleRun = useCallback(async (input) => {
     setBusy(true); setError(""); setView("assess");
+    logEvent("info", `Assessment started: ${input.name}`);
     try {
       let record;
       if (demoMode) { const m = await import("./demo.js"); await new Promise((r) => setTimeout(r, 900)); record = m.demoSynthesize(input); }
       else record = await apiAssess(input);
       setAssessments((prev) => [record, ...prev.filter((x) => x.app.toLowerCase() !== record.app.toLowerCase())]);
       setCurrentId(record.id); setView("detail"); setPrefill(null);
-    } catch (e) { setError(e.message || "Something went wrong while assessing this app."); }
+      logEvent("ok", `${record.app} scored ${record.score} — packet drafted`);
+      if (!demoMode) refreshKb(); // agent runs write KB proposals
+    } catch (e) {
+      setError(e.message || "Something went wrong while assessing this app.");
+      logEvent("err", `Assessment failed: ${input.name}`);
+    }
     finally { setBusy(false); }
-  }, [demoMode]);
+  }, [demoMode, logEvent, refreshKb]);
 
   const handleAssessDiscovered = useCallback(async (domain) => {
     setBusyDomain(domain);
@@ -1114,13 +1324,18 @@ export default function App() {
         setDiscovered((prev) => prev.map((d) => d.domain === domain ? { ...d, assessmentId: record.id, assessment: { id: record.id, score: record.score, recommendation: record.recommendation } } : d));
         setCurrentId(record.id); setView("detail"); return;
       }
+      logEvent("info", `Assessment started: ${domain}`);
       const record = await assessDiscovered(domain);
       setAssessments((prev) => [record, ...prev.filter((x) => x.app.toLowerCase() !== record.app.toLowerCase())]);
       await refreshDiscovered();
       setCurrentId(record.id); setView("detail");
-    } catch (e) { alert(e.message || "Assessment failed"); }
+      logEvent("ok", `${record.app} scored ${record.score} — packet drafted`);
+    } catch (e) {
+      logEvent("err", `Assessment failed: ${domain}`);
+      toast("error", "Assessment failed", e.message || "The assessment could not be completed. Check the engine status and try again.");
+    }
     finally { setBusyDomain(null); }
-  }, [refreshDiscovered, demoMode, discovered]);
+  }, [refreshDiscovered, demoMode, discovered, toast, logEvent]);
 
   const handleDeleteDiscovered = useCallback(async (domain) => {
     try { await deleteDiscovered(domain); await refreshDiscovered(); } catch { /* ignore */ }
@@ -1129,13 +1344,16 @@ export default function App() {
   const handleVerify = useCallback(async (key, control, verdict, vendor) => {
     try {
       if (!demoMode) await verifyControl(key, control, { verdict, vendor });
+      logEvent("kb", `KB verify: ${key} · ${control} → ${verdict}`);
+      toast("success", "Saved to knowledge base", `${key} · ${control} is now human-verified as ${verdict}. Future assessments reuse it as a trusted prior.`);
+      if (!demoMode) refreshKb();
       setAssessments((prev) => prev.map((a) => {
         if (a.id !== currentId) return a;
         const capabilities = { ...a.capabilities, [control]: { ...(a.capabilities?.[control] || {}), verdict, source: "kb-verified", confidence: 1 } };
         return { ...a, capabilities, score: computeScore(capabilities) };
       }));
-    } catch (e) { alert(e.message || "Verify failed"); }
-  }, [currentId, demoMode]);
+    } catch (e) { toast("error", "Verify failed", e.message || "The knowledge-base write did not go through. Check your permissions and try again."); }
+  }, [currentId, demoMode, toast, logEvent, refreshKb]);
 
   const current = assessments.find((a) => a.id === currentId);
   const goNew = (pf = null) => { setPrefill(pf); setError(""); setView("assess"); };
@@ -1154,16 +1372,43 @@ export default function App() {
   // Honest system status (EPIC-ACTIVATION): reflect real readiness, not a static badge.
   const ready = readiness;
   const sysStatus = demoMode
-    ? { label: "Demo data", color: C.primary, pulse: true }
+    ? { label: "Demo data", foot: "Demo data", color: C.primary, pulse: true }
     : !loaded
-    ? { label: "Connecting…", color: C.onVar, pulse: false }
+    ? { label: "Connecting…", foot: "Connecting…", color: C.onVar, pulse: false }
     : ready === null
-    ? { label: "Backend offline", color: C.error, pulse: false }
+    ? { label: "Backend offline", foot: "Engine offline", color: C.error, pulse: false }
     : !ready.assessReady
-    ? { label: "Setup needed", color: C.tertiary, pulse: false }
+    ? { label: "Setup needed", foot: "Setup needed", color: C.tertiary, pulse: false }
     : !ready.webSearch
-    ? { label: "Reduced grounding", color: C.tertiary, pulse: true }
-    : { label: "System Healthy", color: C.secondary, pulse: true };
+    ? { label: "Reduced grounding", foot: "Engine degraded", color: C.tertiary, pulse: true }
+    : { label: "System healthy", foot: "Engine online", color: C.secondary, pulse: true };
+
+  // Portfolio pulse — score-band distribution across assessed vendors.
+  const pulse = useMemo(() => {
+    const n = assessments.length;
+    const bands = { ready: 0, partial: 0, notready: 0 };
+    let sum = 0;
+    for (const a of assessments) {
+      sum += a.score;
+      if (a.score >= 80) bands.ready++; else if (a.score >= 50) bands.partial++; else bands.notready++;
+    }
+    const pct = (x) => (n ? `${Math.round((x / n) * 100)}%` : "0%");
+    return { n, avg: n ? Math.round(sum / n) : 0, wReady: pct(bands.ready), wPart: pct(bands.partial), wNot: pct(bands.notready), legend: `${bands.ready} ready · ${bands.partial} partial · ${bands.notready} not ready` };
+  }, [assessments]);
+
+  // KB-derived queues (real state, not simulated): pending proposals = facts not
+  // yet human-verified; stale = human facts whose evidence is older than 180d.
+  const kbStats = useMemo(() => {
+    if (!kb) return { pending: 0, stale: 0, count: null };
+    let pending = 0, stale = 0;
+    for (const v of kb) for (const c of CAPS) {
+      const f = v.controls?.[c.key];
+      if (!f) continue;
+      if (f.source !== "human") pending++;
+      else if (f.verifiedAt && Date.now() - new Date(f.verifiedAt).getTime() > STALE_MS) stale++;
+    }
+    return { pending, stale, count: kb.length };
+  }, [kb]);
 
   // OIDC sign-in gate: when login is enabled and there's no valid session, show a
   // sign-in screen instead of the app (which would only 401).
@@ -1172,6 +1417,7 @@ export default function App() {
     return (
       <div className="ob">
         <Style />
+      <BrandDefs />
         <div className="ob-bg" aria-hidden="true" />
         <ShaderBG />
         <div className="min-h-screen grid place-items-center p-6">
@@ -1190,6 +1436,7 @@ export default function App() {
   return (
     <div className="ob">
       <Style />
+      <BrandDefs />
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" />
       <div className="ob-bg" aria-hidden="true" />
       <ShaderBG />
@@ -1205,23 +1452,56 @@ export default function App() {
 
       <div className="flex">
         <aside className="hidden md:flex flex-col shrink-0 border-r hair" style={{ width: 260, position: "sticky", top: 0, height: "100vh", background: "rgba(6,14,32,0.8)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", padding: "16px 0", boxShadow: "4px 0 24px rgba(0,0,0,0.5)" }}>
-          <div className="px-5 mb-7"><Logo /></div>
-          <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
-            <NavItem icon={LayoutDashboard} label="Command Center" active={navActive("command")} onClick={() => setView("command")} indicator={<span className="dot pulse-green" style={{ background: C.secondary }} />} />
-            <NavItem icon={Boxes} label="Assessments" active={navActive("catalog")} onClick={() => setView("catalog")} indicator={assessments.length ? <span className="badge">{assessments.length}</span> : <span className="dot" style={{ background: C.outlineVar }} />} />
+          <div className="px-5 mb-6"><Logo /></div>
+          <nav className="px-4 space-y-1 shrink-0">
+            <NavItem icon={LayoutDashboard} label="Command Center" active={navActive("command")} onClick={() => setView("command")} indicator={<span className="dot pulse-green" style={{ background: sysStatus.color, width: 6, height: 6 }} />} />
+            <NavItem icon={Boxes} label="Assessments" active={navActive("catalog")} onClick={() => setView("catalog")} indicator={assessments.length ? <span className="badge">{assessments.length}</span> : null} />
             {features.catalog && (
-              <NavItem icon={RadarIcon} label="Discovered" active={navActive("discovered")} onClick={() => setView("discovered")} indicator={(() => { const sh = discovered.filter((d) => !d.methods?.sso).length; return sh ? <span className="badge" style={{ background: "rgba(255,180,171,0.12)", color: C.error, borderColor: "rgba(255,180,171,0.25)" }}>{sh}</span> : (discovered.length ? <span className="badge">{discovered.length}</span> : <span className="dot" style={{ background: C.outlineVar }} />); })()} />
+              <NavItem icon={RadarIcon} label="Discovered" active={navActive("discovered")} onClick={() => setView("discovered")} indicator={(() => { const sh = discovered.filter((d) => !d.methods?.sso).length; return sh ? <span className="badge" style={{ background: "rgba(255,180,171,0.12)", color: C.error, borderColor: "rgba(255,180,171,0.25)" }}>{sh}</span> : (discovered.length ? <span className="badge">{discovered.length}</span> : null); })()} />
             )}
-            <NavItem icon={ListChecks} label="Knowledge" active={navActive("knowledge")} onClick={() => setView("knowledge")} indicator={<span className="dot" style={{ background: C.outlineVar }} />} />
-            <NavItem icon={Network} label="Integrations" active={navActive("integrations")} onClick={() => setView("integrations")} indicator={<span className="badge">5</span>} />
+            <NavItem icon={ListChecks} label="Knowledge" active={navActive("knowledge")} onClick={() => setView("knowledge")} indicator={kbStats.pending ? <span className="badge" style={{ background: "rgba(255,185,95,0.12)", color: C.tertiary, borderColor: "rgba(255,185,95,0.25)" }}>{kbStats.pending}</span> : null} />
+            <NavItem icon={Network} label="Integrations" active={navActive("integrations")} onClick={() => setView("integrations")} indicator={null} />
           </nav>
-          <div className="px-4 mt-auto space-y-4">
-            <button onClick={() => goNew()} className="btn-primary w-full" style={{ padding: "0.6rem", fontSize: 10 }}><Plus className="w-4 h-4" /> Run assessment</button>
-            <Terminal busy={busy} onRun={quickRun} />
-            <div className="pt-3 border-t hair flex items-center gap-2 px-1">
-              <span className={`dot ${sysStatus.pulse ? "pulse-green" : ""}`} style={{ background: sysStatus.color }} />
-              <span className="caps txt-var" style={{ fontSize: 9 }}>Trust.sys · {!loaded ? "…" : ready === null ? "Offline" : "Online"}</span>
+          <div className="px-4 shrink-0" style={{ marginTop: 14 }}>
+            <button onClick={() => goNew()} className="btn-primary w-full" style={{ padding: "0.6rem" }}><Plus className="w-4 h-4" /> Run assessment</button>
+            <div style={{ marginTop: 10 }}><Terminal busy={busy} onRun={quickRun} /></div>
+          </div>
+          {/* Portfolio pulse */}
+          <div className="px-4 shrink-0" style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+            <div className="flex items-baseline justify-between">
+              <span style={{ font: "600 11.5px Inter, sans-serif", color: C.dim }}>Portfolio pulse</span>
+              {pulse.n > 0 && <span className="mono" style={{ fontSize: 10, color: C.dim }}>{pulse.avg} avg</span>}
             </div>
+            <div style={{ display: "flex", height: 6, borderRadius: 3, overflow: "hidden", background: C.scLow }} role="img" aria-label={pulse.n ? pulse.legend : "no assessments yet"}>
+              <span style={{ width: pulse.wReady, background: C.secondary }} /><span style={{ width: pulse.wPart, background: C.tertiary }} /><span style={{ width: pulse.wNot, background: C.error }} />
+            </div>
+            <div style={{ font: "400 10.5px Inter, sans-serif", color: C.dim }}>{pulse.n ? pulse.legend : "No assessments yet"}</div>
+          </div>
+          {/* Engine feed — real events only (assessments, KB, discovery, heartbeats). */}
+          <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", marginTop: 10, borderTop: "1px solid rgba(255,255,255,0.06)", overflow: "hidden" }}>
+            <div className="flex items-center" style={{ gap: 7, padding: "11px 18px 6px" }}>
+              <span className={sysStatus.pulse ? "pulse-green" : ""} style={{ width: 6, height: 6, borderRadius: 99, background: sysStatus.color, display: "inline-block" }} />
+              <span style={{ font: "600 11.5px Inter, sans-serif", color: C.dim }}>Engine feed</span>
+            </div>
+            <div style={{ flex: 1, minHeight: 0, overflow: "hidden", position: "relative", padding: "0 14px" }}>
+              {events.map((ev, i) => {
+                const ek = { ok: ["✓", C.secondary], info: ["▸", C.primary], warn: ["◐", C.tertiary], err: ["✕", C.error], disc: ["●", "#8fb5ff"], kb: ["◆", C.primary] }[ev.kind] || ["▸", C.primary];
+                return (
+                  <div key={`${ev.t}-${i}`} style={{ display: "flex", gap: 8, alignItems: "baseline", padding: "5px 4px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                    <span className="mono" style={{ fontSize: 9.5, color: C.dim, flex: "none" }}>{ev.t}</span>
+                    <span aria-hidden="true" style={{ fontSize: 10, flex: "none", color: ek[1] }}>{ek[0]}</span>
+                    <span style={{ font: "400 11px/1.45 Inter, sans-serif", color: C.onVar, minWidth: 0 }}>{ev.text}</span>
+                  </div>
+                );
+              })}
+              {events.length === 0 && <div style={{ font: "400 11px Inter, sans-serif", color: C.dim, padding: "6px 4px" }}>Quiet so far — engine events land here.</div>}
+              <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 48, background: "linear-gradient(180deg, rgba(6,14,32,0), rgba(6,14,32,0.92))", pointerEvents: "none" }} />
+            </div>
+          </div>
+          <div className="flex items-center shrink-0" style={{ gap: 8, padding: "12px 18px", borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+            <span className={`dot ${sysStatus.pulse ? "pulse-green" : ""}`} style={{ background: sysStatus.color }} />
+            <span style={{ font: "500 11.5px Inter, sans-serif", color: C.dim }}>{sysStatus.foot}</span>
+            <span className="mono" style={{ marginLeft: "auto", fontSize: 10, color: C.dim }}>v1.0.0</span>
           </div>
         </aside>
 
@@ -1233,7 +1513,7 @@ export default function App() {
               <TerminalSquare className="w-3.5 h-3.5 txt-dim" style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)" }} />
               <input value={topSearch} onChange={(e) => setTopSearch(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submitTopSearch()} placeholder="Search or assess an app…" className="inp" style={{ padding: "0.45rem 2rem 0.45rem 2.25rem" }} />
             </div>
-            <div className="flex items-center gap-2 shrink-0" style={{ color: sysStatus.color }} title={ready ? `provider: ${ready.provider} · model: ${ready.model} · store: ${ready.store}${ready.webSearch ? "" : " · reduced grounding"}` : "Cannot reach the Snout backend"}><span className={`dot ${sysStatus.pulse ? "pulse-green" : ""}`} style={{ background: sysStatus.color }} /><span className="caps">{sysStatus.label}</span></div>
+            <div className="flex items-center shrink-0" style={{ gap: 7, padding: "5px 12px", borderRadius: 99, background: `${sysStatus.color}1f`, border: `1px solid ${sysStatus.color}4d` }} title={ready ? `provider: ${ready.provider} · model: ${ready.model} · store: ${ready.store}${ready.webSearch ? "" : " · reduced grounding"}` : "Cannot reach the Snout backend"}><span className={`dot ${sysStatus.pulse ? "pulse-green" : ""}`} style={{ width: 7, height: 7, background: sysStatus.color }} /><span style={{ font: "600 11.5px Inter, sans-serif", color: sysStatus.color }}>{sysStatus.label}</span></div>
             {auth.oidcEnabled && auth.authenticated && (
               <div className="flex items-center gap-2 shrink-0 pl-3 border-l hair">
                 {auth.email && <span className="txt-dim" style={{ fontSize: 11 }} title={`Role: ${auth.role} · Tenant: ${auth.tenant}`}>{auth.email}</span>}
@@ -1255,22 +1535,36 @@ export default function App() {
                 </div>
               )}
               {!demoMode && loaded && ready === null && (
-                <div className="panel p-3 mb-4 flex items-start gap-3" style={{ borderColor: `${C.error}40`, background: `${C.error}0d` }}>
-                  <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" style={{ color: C.error }} />
-                  <div className="min-w-0 flex-1">
-                    <div className="disp" style={{ fontSize: 13, fontWeight: 600, color: C.on }}>Can't reach the Snout backend</div>
-                    <p className="txt-var" style={{ fontSize: 12.5, marginTop: 2, lineHeight: 1.6 }}>The dashboard can't reach the API at <span className="mono">/api</span>. Make sure the server is running (<span className="mono">npm run dev</span> in <span className="mono">server/</span>) and reachable.</p>
-                  </div>
+                <div className="mb-4 flex items-center" style={{ gap: 11, padding: "10px 14px", borderRadius: 10, background: "rgba(255,180,171,0.08)", border: "1px solid rgba(255,180,171,0.35)" }}>
+                  <span aria-hidden="true" style={{ color: C.error, fontSize: 13, flex: "none" }}>●</span>
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ font: "600 12px Inter, sans-serif", color: C.error }}>Backend offline</span>
+                    <span style={{ font: "400 12px Inter, sans-serif", color: C.onVar, marginLeft: 8 }}>The dashboard can't reach <span className="mono">/api</span> — start the server (<span className="mono">npm run dev</span> in <span className="mono">server/</span>).</span>
+                  </span>
+                  <button onClick={() => window.location.reload()} style={{ marginLeft: "auto", flex: "none", font: "500 12px Inter, sans-serif", color: C.primary, background: "transparent", border: 0, cursor: "pointer" }}>Retry now</button>
                 </div>
               )}
               {!demoMode && loaded && ready && !ready.assessReady && (
-                <div className="panel p-3 mb-4 flex items-start gap-3" style={{ borderColor: `${C.tertiary}55`, background: `${C.tertiary}0d` }}>
-                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: C.tertiary }} />
-                  <div className="min-w-0 flex-1">
-                    <div className="disp" style={{ fontSize: 13, fontWeight: 600, color: C.on }}>Finish setup — assessments can't run yet</div>
-                    <p className="txt-var" style={{ fontSize: 12.5, marginTop: 2, lineHeight: 1.6 }}>No LLM provider key is configured. Set <span className="mono">ANTHROPIC_API_KEY</span> on the server (or <span className="mono">LLM_BASE_URL</span> + <span className="mono">LLM_API_KEY</span> + <span className="mono">LLM_MODEL</span> for an OpenAI-compatible endpoint) and restart. Discovery, the knowledge base, and saved assessments still work.</p>
-                  </div>
-                  <button onClick={enterDemo} className="btn-ghost shrink-0 self-center" style={{ padding: "0.3rem 0.7rem", fontSize: 10, whiteSpace: "nowrap" }}><Sparkles className="w-3.5 h-3.5" /> Load sample data</button>
+                <div className="mb-4 flex items-center flex-wrap" style={{ gap: 11, padding: "10px 14px", borderRadius: 10, background: "rgba(173,198,255,0.07)", border: "1px solid rgba(173,198,255,0.3)" }}>
+                  <span aria-hidden="true" style={{ color: C.primary, fontSize: 13, flex: "none" }}>◇</span>
+                  <span style={{ minWidth: 0, flex: 1 }}>
+                    <span style={{ font: "600 12px Inter, sans-serif", color: C.primary }}>Setup needed</span>
+                    <span style={{ font: "400 12px Inter, sans-serif", color: C.onVar, marginLeft: 8 }}>Set <span className="mono" style={{ background: C.scLowest, border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "1px 6px", fontSize: 11 }}>ANTHROPIC_API_KEY</span> to enable agent research. Discovery, the knowledge base, and saved assessments still work.</span>
+                  </span>
+                  <span className="flex items-center shrink-0" style={{ gap: 12 }}>
+                    <button onClick={enterDemo} className="btn-ghost" style={{ padding: "0.3rem 0.7rem", fontSize: 11, whiteSpace: "nowrap" }}><Sparkles className="w-3.5 h-3.5" /> Load sample data</button>
+                    <a href="https://github.com/sknib1337/Snout#configuration" target="_blank" rel="noopener noreferrer" style={{ font: "500 12px Inter, sans-serif", color: C.primary, textDecoration: "none" }}>Docs →</a>
+                  </span>
+                </div>
+              )}
+              {!demoMode && loaded && ready && ready.assessReady && !ready.webSearch && (
+                <div className="mb-4 flex items-center" style={{ gap: 11, padding: "10px 14px", borderRadius: 10, background: "rgba(255,185,95,0.07)", border: "1px solid rgba(255,185,95,0.35)" }}>
+                  <span aria-hidden="true" style={{ color: C.tertiary, fontSize: 13, flex: "none" }}>◐</span>
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ font: "600 12px Inter, sans-serif", color: C.tertiary }}>Reduced grounding</span>
+                    <span style={{ font: "400 12px Inter, sans-serif", color: C.onVar, marginLeft: 8 }}>Non-Anthropic provider: citations dropped, new verdicts capped at ◐ Partial.</span>
+                  </span>
+                  <button onClick={() => toast("info", "Why reduced grounding?", "Only the Anthropic path has live web search. Without it the model can't retrieve evidence, so Snout deterministically drops citations and caps unproven verdicts rather than over-trusting them.")} style={{ marginLeft: "auto", flex: "none", font: "500 12px Inter, sans-serif", color: C.primary, background: "transparent", border: 0, cursor: "pointer" }}>Why →</button>
                 </div>
               )}
               {alerts.length > 0 && (
@@ -1285,7 +1579,7 @@ export default function App() {
               {!loaded ? (
                 <div className="py-24 grid place-items-center txt-dim"><Loader2 className="w-6 h-6 spin" /></div>
               ) : view === "command" ? (
-                <CommandCenter assessments={assessments} onOpen={open} onNew={() => goNew()} goCatalog={() => { setCatalogQuery(""); setView("catalog"); }} onDemo={demoMode ? undefined : enterDemo} />
+                <CommandCenter assessments={assessments} discovered={discovered} kbPending={kbStats.pending} kbStale={kbStats.stale} kbCount={kbStats.count} readiness={ready} onOpen={open} onNew={() => goNew()} goCatalog={() => { setCatalogQuery(""); setView("catalog"); }} goDiscovered={() => setView("discovered")} goKnowledge={() => setView("knowledge")} onAssessDiscovered={handleAssessDiscovered} busyDomain={busyDomain} onDemo={demoMode ? undefined : enterDemo} />
               ) : view === "catalog" ? (
                 <Catalog assessments={assessments} onOpen={open} onNew={() => goNew()} initialQuery={catalogQuery} onDemo={demoMode ? undefined : enterDemo} />
               ) : view === "discovered" ? (
@@ -1293,15 +1587,15 @@ export default function App() {
               ) : view === "assess" ? (
                 <AssessForm onRun={handleRun} busy={busy} error={error} prefill={prefill} />
               ) : view === "knowledge" ? (
-                <KnowledgeView />
+                <KnowledgeView onKbChange={refreshKb} />
               ) : view === "integrations" ? (
                 <Integrations onAssessCatalog={(app) => goNew({ name: app.name, vendor: app.vendor })} />
               ) : view === "detail" && current ? (
                 <Detail a={current} onBack={() => setView("command")} onReassess={() => goNew({ name: current.app, vendor: current.vendor })} onVerify={handleVerify} />
               ) : (
-                <CommandCenter assessments={assessments} onOpen={open} onNew={() => goNew()} goCatalog={() => setView("catalog")} onDemo={demoMode ? undefined : enterDemo} />
+                <CommandCenter assessments={assessments} discovered={discovered} kbPending={kbStats.pending} kbStale={kbStats.stale} kbCount={kbStats.count} readiness={ready} onOpen={open} onNew={() => goNew()} goCatalog={() => setView("catalog")} goDiscovered={() => setView("discovered")} goKnowledge={() => setView("knowledge")} onAssessDiscovered={handleAssessDiscovered} busyDomain={busyDomain} onDemo={demoMode ? undefined : enterDemo} />
               )}
-              <footer className="mt-8 mono txt-dim" style={{ fontSize: 10.5, lineHeight: 1.7 }}>Snout scores the six critical enterprise SaaS controls — SSO · lifecycle · entitlements · risk signals · logout · token revocation. Verdicts are evidence-backed, not advice; confirm citations before acting.</footer>
+              <footer className="mt-8 txt-dim" style={{ fontSize: 11.5, lineHeight: 1.7, fontFamily: "Inter, sans-serif" }}>Snout scores the six IPSIE-aligned identity controls — SSO · lifecycle · entitlements · risk signals · logout · token revocation. Verdicts are evidence-backed, not advice; confirm citations before acting.</footer>
             </div>
           </div>
         </main>

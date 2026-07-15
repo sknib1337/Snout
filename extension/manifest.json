@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Snout — Shadow SaaS & Auth Capture",
+  "name": "Snout — Shadow SaaS & Auth Discovery",
   "version": "1.0.0",
-  "description": "Discover shadow SaaS and shadow authentication (local passwords, consumer/social IdP logins, OAuth grants) as you browse. Local-first; export to Snout.",
+  "description": "Finds shadow SaaS and auth methods; assess any vendor against the six IPSIE identity controls.",
   "permissions": ["storage", "webNavigation", "alarms"],
   "host_permissions": ["http://*/*", "https://*/*"],
   "storage": { "managed_schema": "managed_schema.json" },
